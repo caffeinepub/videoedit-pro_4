@@ -29,6 +29,7 @@ import {
   Eye,
   EyeOff,
   Film,
+  Fingerprint,
   IndianRupee,
   LayoutDashboard,
   Loader2,
@@ -36,6 +37,7 @@ import {
   TrendingUp,
   UserCheck,
   Users,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
@@ -50,6 +52,12 @@ import {
   useIsStripeConfigured,
   useSetAdminPasskey,
 } from "../../hooks/useQueries";
+import {
+  hasFingerprintRegistered,
+  isWebAuthnSupported,
+  registerFingerprint,
+  removeFingerprint,
+} from "../../hooks/useWebAuthn";
 import { ManageUsers } from "./ManageUsers";
 import { StripeSetup } from "./StripeSetup";
 
@@ -303,7 +311,12 @@ function SecurityTab() {
   const [confirmPasskey, setConfirmPasskey] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [fingerprintRegistered, setFingerprintRegistered] = useState(
+    hasFingerprintRegistered,
+  );
+  const [fingerprintLoading, setFingerprintLoading] = useState(false);
   const setAdminPasskey = useSetAdminPasskey();
+  const webAuthnSupported = isWebAuthnSupported();
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -327,17 +340,115 @@ function SecurityTab() {
     }
   };
 
+  const handleRegisterFingerprint = async () => {
+    setFingerprintLoading(true);
+    try {
+      const generatedPasskey = await registerFingerprint();
+      await setAdminPasskey.mutateAsync(generatedPasskey);
+      setFingerprintRegistered(true);
+      toast.success(
+        "Fingerprint registered! You can now log in with your fingerprint.",
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Fingerprint registration failed.",
+      );
+    } finally {
+      setFingerprintLoading(false);
+    }
+  };
+
+  const handleRemoveFingerprint = () => {
+    removeFingerprint();
+    setFingerprintRegistered(false);
+    toast.success("Fingerprint removed from this device.");
+  };
+
   return (
     <div className="max-w-lg space-y-6">
+      {/* Fingerprint Section */}
+      {webAuthnSupported && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-4">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <Fingerprint className="w-5 h-5 text-primary" />
+              Fingerprint Login
+            </CardTitle>
+            <CardDescription>
+              Use your device fingerprint sensor to log in instantly without
+              typing a passkey.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {fingerprintRegistered ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[oklch(0.75_0.18_148)]/10 border border-[oklch(0.75_0.18_148)]/20">
+                  <Fingerprint className="w-5 h-5 text-[oklch(0.75_0.18_148)] flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-[oklch(0.75_0.18_148)]">
+                      Fingerprint registered on this device
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      You can use your fingerprint to access the admin portal.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  data-ocid="admin.security.remove_fingerprint.button"
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2 border-destructive/30 text-destructive hover:bg-destructive/5"
+                  onClick={handleRemoveFingerprint}
+                >
+                  <X className="w-4 h-4" />
+                  Remove Fingerprint from this Device
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
+                  <Fingerprint className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-primary" />
+                  <p>
+                    Registering your fingerprint will generate a new secure
+                    passkey and link it to your fingerprint on this device. This
+                    replaces your current passkey.
+                  </p>
+                </div>
+                <Button
+                  data-ocid="admin.security.register_fingerprint.button"
+                  type="button"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
+                  onClick={handleRegisterFingerprint}
+                  disabled={fingerprintLoading}
+                >
+                  {fingerprintLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Registering…
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-4 h-4" />
+                      Register Fingerprint
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Manual Passkey Section */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-4">
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
-            Admin Passkey
+            Manual Passkey
           </CardTitle>
           <CardDescription>
-            Set or change the passkey required to access the admin section. Keep
-            it secret — this is separate from your Internet Identity login.
+            Set or change the text passkey used as a fallback when fingerprint
+            is not available.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -408,8 +519,8 @@ function SecurityTab() {
             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
               <Shield className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-primary" />
               <p>
-                This passkey is required every new browser session to access the
-                admin section. Store it somewhere safe.
+                This passkey is required every new browser session when
+                fingerprint is not available. Store it somewhere safe.
               </p>
             </div>
 

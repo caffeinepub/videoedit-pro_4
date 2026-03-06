@@ -9,17 +9,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Loader2, Lock, Shield } from "lucide-react";
+import { Eye, EyeOff, Fingerprint, Loader2, Lock, Shield } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { useVerifyAdminPasskey } from "../../hooks/useQueries";
+import {
+  authenticateFingerprint,
+  hasFingerprintRegistered,
+  isWebAuthnSupported,
+} from "../../hooks/useWebAuthn";
 
 export function AdminLoginPage() {
   const [passkey, setPasskey] = useState("");
   const [showPasskey, setShowPasskey] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fingerprintLoading, setFingerprintLoading] = useState(false);
 
   const { identity, login, loginStatus, isInitializing } =
     useInternetIdentity();
@@ -29,7 +35,40 @@ export function AdminLoginPage() {
   const verifyPasskey = useVerifyAdminPasskey();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const fingerprintAvailable =
+    isWebAuthnSupported() && hasFingerprintRegistered();
+
+  const doNavigate = () => {
+    sessionStorage.setItem("adminAuthenticated", "true");
+    toast.success("Welcome to the Admin Portal");
+    navigate({ to: "/admin" });
+  };
+
+  const handleFingerprintLogin = async () => {
+    setError(null);
+    setFingerprintLoading(true);
+    try {
+      const storedPasskey = await authenticateFingerprint();
+      const isValid = await verifyPasskey.mutateAsync(storedPasskey);
+      if (isValid) {
+        doNavigate();
+      } else {
+        setError(
+          "Fingerprint verified but passkey mismatch. Try re-registering your fingerprint in the Security tab.",
+        );
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Fingerprint authentication failed.",
+      );
+    } finally {
+      setFingerprintLoading(false);
+    }
+  };
+
+  const handlePasskeySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passkey.trim()) return;
 
@@ -37,9 +76,7 @@ export function AdminLoginPage() {
     try {
       const isValid = await verifyPasskey.mutateAsync(passkey.trim());
       if (isValid) {
-        sessionStorage.setItem("adminAuthenticated", "true");
-        toast.success("Welcome to the Admin Portal");
-        navigate({ to: "/admin" });
+        doNavigate();
       } else {
         setError("Incorrect passkey. Try again.");
       }
@@ -91,8 +128,10 @@ export function AdminLoginPage() {
             <CardTitle className="font-display text-lg">Sign in</CardTitle>
             <CardDescription>
               {!isAuthenticated
-                ? "You must sign in first, then enter your admin passkey."
-                : "Enter admin passkey to continue"}
+                ? "You must sign in first, then verify your identity."
+                : fingerprintAvailable
+                  ? "Use your fingerprint or enter your passkey."
+                  : "Enter your admin passkey to continue."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -128,85 +167,122 @@ export function AdminLoginPage() {
               </motion.div>
             )}
 
-            {/* Step 2 — Passkey */}
+            {/* Step 2 — Fingerprint or Passkey */}
             {isAuthenticated && (
-              <motion.form
+              <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                onSubmit={handleSubmit}
                 className="space-y-5"
               >
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="passkey"
-                    className="text-sm font-medium flex items-center gap-1.5"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-                    Admin Passkey
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="passkey"
-                      data-ocid="admin_login.passkey.input"
-                      type={showPasskey ? "text" : "password"}
-                      placeholder="Enter passkey…"
-                      value={passkey}
-                      onChange={(e) => {
-                        setPasskey(e.target.value);
-                        if (error) setError(null);
-                      }}
-                      className="pr-10 bg-input border-border focus:border-primary"
-                      autoFocus
-                      autoComplete="current-password"
-                    />
-                    <button
+                {/* Fingerprint button — shown when registered */}
+                {fingerprintAvailable && (
+                  <div className="space-y-3">
+                    <Button
+                      data-ocid="admin_login.fingerprint_button"
                       type="button"
-                      onClick={() => setShowPasskey((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={showPasskey ? "Hide passkey" : "Show passkey"}
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2 h-12 text-base"
+                      onClick={handleFingerprintLogin}
+                      disabled={fingerprintLoading || verifyPasskey.isPending}
                     >
-                      {showPasskey ? (
-                        <EyeOff className="w-4 h-4" />
+                      {fingerprintLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Scanning…
+                        </>
                       ) : (
-                        <Eye className="w-4 h-4" />
+                        <>
+                          <Fingerprint className="w-5 h-5" />
+                          Login with Fingerprint
+                        </>
                       )}
-                    </button>
-                  </div>
-                </div>
+                    </Button>
 
-                {/* Error state */}
-                {error && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    data-ocid="admin_login.error_state"
-                    className="text-sm text-destructive flex items-center gap-1.5 bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2"
-                  >
-                    <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                    {error}
-                  </motion.p>
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs text-muted-foreground">
+                        or use passkey
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  </div>
                 )}
 
-                <Button
-                  data-ocid="admin_login.submit_button"
-                  type="submit"
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
-                  disabled={verifyPasskey.isPending || !passkey.trim()}
-                >
-                  {verifyPasskey.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Verifying…
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="w-4 h-4" />
-                      Continue
-                    </>
+                {/* Passkey form */}
+                <form onSubmit={handlePasskeySubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="passkey"
+                      className="text-sm font-medium flex items-center gap-1.5"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                      Admin Passkey
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="passkey"
+                        data-ocid="admin_login.passkey.input"
+                        type={showPasskey ? "text" : "password"}
+                        placeholder="Enter passkey…"
+                        value={passkey}
+                        onChange={(e) => {
+                          setPasskey(e.target.value);
+                          if (error) setError(null);
+                        }}
+                        className="pr-10 bg-input border-border focus:border-primary"
+                        autoFocus={!fingerprintAvailable}
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasskey((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={
+                          showPasskey ? "Hide passkey" : "Show passkey"
+                        }
+                      >
+                        {showPasskey ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Error state */}
+                  {error && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      data-ocid="admin_login.error_state"
+                      className="text-sm text-destructive flex items-center gap-1.5 bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2"
+                    >
+                      <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                      {error}
+                    </motion.p>
                   )}
-                </Button>
-              </motion.form>
+
+                  <Button
+                    data-ocid="admin_login.submit_button"
+                    type="submit"
+                    className="w-full bg-primary/80 text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
+                    disabled={verifyPasskey.isPending || !passkey.trim()}
+                  >
+                    {verifyPasskey.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Verifying…
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="w-4 h-4" />
+                        Continue with Passkey
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </motion.div>
             )}
           </CardContent>
         </Card>

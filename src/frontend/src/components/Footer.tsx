@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Film, Heart } from "lucide-react";
 
 export function Footer() {
@@ -28,6 +29,13 @@ export function Footer() {
               caffeine.ai
             </a>
           </p>
+          <Link
+            to="/admin-login"
+            data-ocid="footer.admin_login.link"
+            className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          >
+            Admin
+          </Link>
         </div>
       </div>
     </footer>
