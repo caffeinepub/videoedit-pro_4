@@ -74,7 +74,8 @@ export interface UserProfile { 'appRole' : AppUserRole, 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
-export type VideoType = { 'long' : null } |
+export type VideoType = { 'photo_to_video' : null } |
+  { 'long' : null } |
   { 'small' : null } |
   { 'medium' : null };
 export interface _CaffeineStorageCreateCertificateResult {

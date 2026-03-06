@@ -12,6 +12,7 @@ import {
   CreditCard,
   Download,
   Film,
+  Image,
   IndianRupee,
   Play,
   Plus,
@@ -44,6 +45,14 @@ function formatRupees(paise: bigint) {
 }
 
 function VideoTypeBadge({ type }: { type: VideoType }) {
+  if (type === VideoType.photo_to_video) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+        <Image className="w-2.5 h-2.5" />
+        Photo→Video
+      </span>
+    );
+  }
   if (type === VideoType.small) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock,
   Film,
+  Image,
   Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -161,10 +162,20 @@ export function EditorDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        {job.videoType === VideoType.small ? (
+                        {job.videoType === VideoType.photo_to_video ? (
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                            <Image className="w-2.5 h-2.5" />
+                            Photo→Video
+                          </span>
+                        ) : job.videoType === VideoType.small ? (
                           <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">
                             <Zap className="w-2.5 h-2.5" />
                             Small
+                          </span>
+                        ) : job.videoType === VideoType.medium ? (
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                            <Film className="w-2.5 h-2.5" />
+                            Medium
                           </span>
                         ) : (
                           <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/25">

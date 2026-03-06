@@ -190,6 +190,7 @@ export enum UserRole {
     guest = "guest"
 }
 export enum VideoType {
+    photo_to_video = "photo_to_video",
     long_ = "long",
     small = "small",
     medium = "medium"
@@ -763,13 +764,15 @@ function from_candid_variant_n15(_uploadFile: (file: ExternalBlob) => Promise<Ui
     return "assigned" in value ? JobStatus.assigned : "pending_payment" in value ? JobStatus.pending_payment : "pending" in value ? JobStatus.pending : "in_progress" in value ? JobStatus.in_progress : "completed" in value ? JobStatus.completed : value;
 }
 function from_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    photo_to_video: null;
+} | {
     long: null;
 } | {
     small: null;
 } | {
     medium: null;
 }): VideoType {
-    return "long" in value ? VideoType.long : "small" in value ? VideoType.small : "medium" in value ? VideoType.medium : value;
+    return "photo_to_video" in value ? VideoType.photo_to_video : "long" in value ? VideoType.long : "small" in value ? VideoType.small : "medium" in value ? VideoType.medium : value;
 }
 function from_candid_variant_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     client: null;
@@ -909,13 +912,17 @@ function to_candid_variant_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint
     } : value;
 }
 function to_candid_variant_n40(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VideoType): {
+    photo_to_video: null;
+} | {
     long: null;
 } | {
     small: null;
 } | {
     medium: null;
 } {
-    return value == VideoType.long ? {
+    return value == VideoType.photo_to_video ? {
+        photo_to_video: null
+    } : value == VideoType.long ? {
         long_: null
     } : value == VideoType.small ? {
         small: null

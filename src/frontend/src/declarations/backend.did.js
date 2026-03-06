@@ -42,6 +42,7 @@ export const JobStatus = IDL.Variant({
 });
 export const Time = IDL.Int;
 export const VideoType = IDL.Variant({
+  'photo_to_video' : IDL.Null,
   'long' : IDL.Null,
   'small' : IDL.Null,
   'medium' : IDL.Null,
@@ -206,6 +207,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const Time = IDL.Int;
   const VideoType = IDL.Variant({
+    'photo_to_video' : IDL.Null,
     'long' : IDL.Null,
     'small' : IDL.Null,
     'medium' : IDL.Null,

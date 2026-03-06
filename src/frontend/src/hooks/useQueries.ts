@@ -140,7 +140,7 @@ export function useSubmitJob() {
       sourceVideoFile: File;
       referenceVideoFile: File;
       notes: string;
-      videoType: "small" | "medium" | "long";
+      videoType: "photo_to_video" | "small" | "medium" | "long";
       onSourceProgress?: (p: number) => void;
       onRefProgress?: (p: number) => void;
     }): Promise<string> => {
@@ -163,11 +163,13 @@ export function useSubmitJob() {
         referenceVideo: referenceBlob,
         notes,
         videoType:
-          videoType === "small"
-            ? VideoType.small
-            : videoType === "medium"
-              ? VideoType.medium
-              : VideoType.long_,
+          videoType === "photo_to_video"
+            ? VideoType.photo_to_video
+            : videoType === "small"
+              ? VideoType.small
+              : videoType === "medium"
+                ? VideoType.medium
+                : VideoType.long_,
       });
 
       return checkoutUrl;

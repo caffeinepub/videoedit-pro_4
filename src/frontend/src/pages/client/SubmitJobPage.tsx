@@ -11,6 +11,7 @@ import {
   Clock,
   CreditCard,
   Film,
+  Image,
   IndianRupee,
   Loader2,
   Phone,
@@ -23,10 +24,20 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSubmitJob } from "../../hooks/useQueries";
 
-type VideoType = "small" | "medium" | "long";
+type VideoType = "photo_to_video" | "small" | "medium" | "long";
 type PaymentMethod = "stripe" | "googlepay" | "phonepe";
 
 const VIDEO_TYPES = {
+  photo_to_video: {
+    label: "Photo to Video",
+    price: 50,
+    priceLabel: "₹50",
+    description: "Convert any photo into a video",
+    detail:
+      "Turn your picture into an animated or cinematic video. Perfect for reels, slideshows, and AI-style video creation.",
+    icon: Image,
+    badgeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  },
   small: {
     label: "Small Video",
     price: 100,
@@ -66,7 +77,8 @@ interface DropzoneProps {
   "data-upload-ocid"?: string;
   "data-dropzone-ocid"?: string;
   "data-success-ocid"?: string;
-  accentColor?: "blue" | "amber" | "purple";
+  accentColor?: "blue" | "amber" | "purple" | "emerald";
+  acceptImages?: boolean;
 }
 
 function formatSize(bytes: number): string {
@@ -82,6 +94,7 @@ function Dropzone({
   "data-dropzone-ocid": dropzoneOcid,
   "data-success-ocid": successOcid,
   accentColor = "amber",
+  acceptImages = false,
 }: DropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -114,6 +127,12 @@ function Dropzone({
       text: "text-purple-400",
       bg: "bg-purple-500/15",
       icon: "text-purple-300",
+    },
+    emerald: {
+      ring: "border-emerald-400/60 bg-emerald-500/5",
+      text: "text-emerald-400",
+      bg: "bg-emerald-500/15",
+      icon: "text-emerald-300",
     },
   };
   const accent = accentMap[accentColor];
@@ -171,7 +190,7 @@ function Dropzone({
         <input
           ref={inputRef}
           type="file"
-          accept="video/*"
+          accept={acceptImages ? "image/*" : "video/*"}
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -188,6 +207,8 @@ function Dropzone({
         >
           {selectedFile ? (
             <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+          ) : acceptImages ? (
+            <Image className="w-6 h-6 text-muted-foreground" />
           ) : (
             <Upload className="w-6 h-6 text-muted-foreground" />
           )}
@@ -196,7 +217,16 @@ function Dropzone({
         <div>
           <p className="text-sm font-medium text-foreground">
             {selectedFile ? (
-              "Replace video"
+              acceptImages ? (
+                "Replace image"
+              ) : (
+                "Replace video"
+              )
+            ) : acceptImages ? (
+              <>
+                Drop image here or{" "}
+                <span className={accent.text}>browse files</span>
+              </>
             ) : (
               <>
                 Drop video here or{" "}
@@ -205,7 +235,9 @@ function Dropzone({
             )}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            MP4, MOV, AVI, MKV — up to 100 GB
+            {acceptImages
+              ? "JPG, PNG, WEBP — up to 50 MB"
+              : "MP4, MOV, AVI, MKV — up to 100 GB"}
           </p>
         </div>
       </button>
@@ -225,7 +257,13 @@ function Dropzone({
         disabled={uploading}
       >
         <Upload className="w-3.5 h-3.5 mr-1.5" />
-        {selectedFile ? "Choose different file" : "Select video file"}
+        {selectedFile
+          ? acceptImages
+            ? "Choose different image"
+            : "Choose different file"
+          : acceptImages
+            ? "Select image file"
+            : "Select video file"}
       </Button>
     </div>
   );
@@ -440,6 +478,7 @@ function StepForm({ videoType, onSuccess }: StepFormProps) {
 
   const submitJob = useSubmitJob();
   const config = VIDEO_TYPES[videoType];
+  const isPhotoToVideo = videoType === "photo_to_video";
 
   // Step logic
   const step1Done = !!sourceVideo;
@@ -547,11 +586,23 @@ function StepForm({ videoType, onSuccess }: StepFormProps) {
               <div className="mb-4">
                 <StepHeader
                   number={1}
-                  label="Upload Source Video"
-                  sublabel="The video you want edited"
+                  label={
+                    isPhotoToVideo ? "Upload Your Photo" : "Upload Source Video"
+                  }
+                  sublabel={
+                    isPhotoToVideo
+                      ? "The photo you want converted to video"
+                      : "The video you want edited"
+                  }
                   isCompleted={step1Done}
                   isActive={!step1Done}
-                  icon={<Video className="w-4 h-4" />}
+                  icon={
+                    isPhotoToVideo ? (
+                      <Image className="w-4 h-4" />
+                    ) : (
+                      <Video className="w-4 h-4" />
+                    )
+                  }
                 />
               </div>
 
@@ -562,7 +613,8 @@ function StepForm({ videoType, onSuccess }: StepFormProps) {
                 data-upload-ocid="submit.source_video.upload_button"
                 data-dropzone-ocid="submit.source_video.dropzone"
                 data-success-ocid="submit.source_video.success_state"
-                accentColor="amber"
+                accentColor={isPhotoToVideo ? "emerald" : "amber"}
+                acceptImages={isPhotoToVideo}
               />
 
               {isUploading && sourceProgress > 0 && sourceProgress < 100 && (
@@ -641,11 +693,13 @@ function StepForm({ videoType, onSuccess }: StepFormProps) {
                       data-dropzone-ocid="submit.reference_video.dropzone"
                       data-success-ocid="submit.reference_video.success_state"
                       accentColor={
-                        videoType === "small"
-                          ? "blue"
-                          : videoType === "medium"
-                            ? "amber"
-                            : "purple"
+                        videoType === "photo_to_video"
+                          ? "emerald"
+                          : videoType === "small"
+                            ? "blue"
+                            : videoType === "medium"
+                              ? "amber"
+                              : "purple"
                       }
                     />
 
@@ -893,7 +947,7 @@ function StepForm({ videoType, onSuccess }: StepFormProps) {
 
 export function SubmitJobPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<VideoType>("small");
+  const [activeTab, setActiveTab] = useState<VideoType>("photo_to_video");
 
   const handleSuccess = (checkoutUrl: string) => {
     window.location.href = checkoutUrl;
@@ -932,7 +986,30 @@ export function SubmitJobPage() {
           onValueChange={(v) => setActiveTab(v as VideoType)}
           className="mb-6"
         >
-          <TabsList className="grid grid-cols-3 w-full bg-muted/30 border border-border h-auto p-1 gap-1">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full bg-muted/30 border border-border h-auto p-1 gap-1">
+            <TabsTrigger
+              value="photo_to_video"
+              data-ocid="submit.photo_to_video.tab"
+              className="flex flex-col items-center gap-1.5 py-3 px-2 h-auto data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300 data-[state=active]:border-emerald-500/30 data-[state=active]:shadow-none rounded-lg transition-all relative"
+            >
+              <div className="absolute -top-px left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 opacity-80" />
+              <div className="flex items-center gap-1.5">
+                <Image className="w-4 h-4" />
+                <span className="font-display font-bold text-xs sm:text-sm">
+                  Photo→Video
+                </span>
+              </div>
+              <Badge
+                variant="outline"
+                className="text-xs font-mono bg-emerald-500/10 text-emerald-400 border-emerald-500/25 px-2"
+              >
+                ₹50
+              </Badge>
+              <span className="text-xs text-muted-foreground hidden sm:block">
+                Starter
+              </span>
+            </TabsTrigger>
+
             <TabsTrigger
               value="small"
               data-ocid="submit.small_video.tab"
@@ -940,7 +1017,9 @@ export function SubmitJobPage() {
             >
               <div className="flex items-center gap-1.5">
                 <Zap className="w-4 h-4" />
-                <span className="font-display font-bold text-sm">Small</span>
+                <span className="font-display font-bold text-xs sm:text-sm">
+                  Small
+                </span>
               </div>
               <Badge
                 variant="outline"
@@ -960,7 +1039,9 @@ export function SubmitJobPage() {
             >
               <div className="flex items-center gap-1.5">
                 <Film className="w-4 h-4" />
-                <span className="font-display font-bold text-sm">Medium</span>
+                <span className="font-display font-bold text-xs sm:text-sm">
+                  Medium
+                </span>
               </div>
               <Badge
                 variant="outline"
@@ -980,7 +1061,9 @@ export function SubmitJobPage() {
             >
               <div className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
-                <span className="font-display font-bold text-sm">Long</span>
+                <span className="font-display font-bold text-xs sm:text-sm">
+                  Long
+                </span>
               </div>
               <Badge
                 variant="outline"

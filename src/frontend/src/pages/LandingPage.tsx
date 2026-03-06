@@ -6,6 +6,7 @@ import {
   Clock,
   Download,
   Film,
+  Image,
   Scissors,
   Shield,
   Star,
@@ -114,7 +115,7 @@ export function LandingPage() {
               Upload your raw footage with a reference video, and our supervised
               team of professional editors will transform it into exactly what
               you imagined. Starting at just{" "}
-              <span className="text-primary font-semibold">₹100</span>.
+              <span className="text-primary font-semibold">₹50</span>.
             </motion.p>
 
             <motion.div
@@ -256,7 +257,79 @@ export function LandingPage() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            {/* Photo to Video Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.05 }}
+            >
+              <div className="card-glass rounded-2xl p-8 h-full relative overflow-hidden border border-emerald-500/30 hover:border-emerald-500/50 transition-colors duration-300 flex flex-col shadow-[0_2px_24px_oklch(0.68_0.18_148/0.12)]">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-70" />
+                <div className="absolute top-3 right-3">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide">
+                    Starter
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                    <Image className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-lg">
+                      Photo to Video
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Convert any photo into a video
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-1 mb-6">
+                  <span className="font-display text-5xl font-black text-emerald-300">
+                    ₹50
+                  </span>
+                  <span className="text-sm text-muted-foreground mb-1.5 font-mono">
+                    /photo
+                  </span>
+                </div>
+
+                <ul className="space-y-2.5 mb-8 flex-1">
+                  {[
+                    "Upload a single photo",
+                    "Converted to animated video",
+                    "Admin-supervised quality",
+                    "Delivered to your account",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-center gap-2.5 text-sm"
+                    >
+                      <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <span className="text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {isAuthenticated ? (
+                  <Button
+                    data-ocid="pricing.photo_video.button"
+                    asChild
+                    size="lg"
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-display font-bold"
+                  >
+                    <Link to="/client/submit">Convert Photo</Link>
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Sign in to get started →
+                  </p>
+                )}
+              </div>
+            </motion.div>
+
             {/* Small Video Card */}
             <motion.div
               initial={{ opacity: 0, y: 24 }}

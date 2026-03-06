@@ -104,6 +104,7 @@ export enum UserRole {
     guest = "guest"
 }
 export enum VideoType {
+    photo_to_video = "photo_to_video",
     long_ = "long",
     small = "small",
     medium = "medium"

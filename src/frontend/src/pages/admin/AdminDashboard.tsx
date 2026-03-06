@@ -35,13 +35,13 @@ import {
   Clock,
   CreditCard,
   Download,
-  Eye,
-  EyeOff,
   Film,
   Fingerprint,
+  Image,
   IndianRupee,
   LayoutDashboard,
   Loader2,
+  Phone,
   RefreshCw,
   Send,
   Shield,
@@ -120,7 +120,12 @@ function AssignJobRow({ job }: { job: Job }) {
         <StatusBadge status={job.status} />
       </TableCell>
       <TableCell>
-        {job.videoType === VideoType.small ? (
+        {job.videoType === VideoType.photo_to_video ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+            <Image className="w-2.5 h-2.5" />
+            Photo→Video
+          </span>
+        ) : job.videoType === VideoType.small ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">
             <Zap className="w-2.5 h-2.5" />
             Small
@@ -340,11 +345,7 @@ function RevenueTab({ allJobs }: { allJobs: Job[] }) {
 }
 
 function SecurityTab() {
-  const [adminEmail, setAdminEmail] = useState("");
-  const [newPasskey, setNewPasskey] = useState("");
-  const [confirmPasskey, setConfirmPasskey] = useState("");
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [adminPhone, setAdminPhone] = useState("");
   const [fingerprintRegistered, setFingerprintRegistered] = useState(
     hasFingerprintRegistered,
   );
@@ -354,28 +355,18 @@ function SecurityTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminEmail.trim()) {
-      toast.error("Email cannot be empty.");
-      return;
-    }
-    if (!newPasskey.trim()) {
-      toast.error("Password cannot be empty.");
-      return;
-    }
-    if (newPasskey !== confirmPasskey) {
-      toast.error("Passwords do not match.");
+    const digits = adminPhone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Please enter a valid phone number with at least 10 digits.");
       return;
     }
     try {
-      const combined = `${adminEmail.trim()}:${newPasskey.trim()}`;
-      await setAdminPasskey.mutateAsync(combined);
-      toast.success("Admin credentials updated successfully.");
-      setAdminEmail("");
-      setNewPasskey("");
-      setConfirmPasskey("");
+      await setAdminPasskey.mutateAsync(adminPhone.trim());
+      toast.success("Admin phone number updated successfully.");
+      setAdminPhone("");
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to update credentials.",
+        err instanceof Error ? err.message : "Failed to update phone number.",
       );
     }
   };
@@ -411,15 +402,15 @@ function SecurityTab() {
         data-ocid="admin.security.info_panel"
         className="flex items-start gap-3 p-4 rounded-lg bg-blue-500/10 border border-blue-500/25 text-sm"
       >
-        <Shield className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-400" />
+        <Phone className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-400" />
         <div>
           <p className="font-medium text-blue-300 mb-0.5">
-            Set your admin email and password below.
+            Set your admin phone number below.
           </p>
           <p className="text-muted-foreground text-xs leading-relaxed">
-            If you have forgotten your passkey, you can set a new one here. Log
-            in via the "Reset passkey via Internet Identity" option on the login
-            page to reach this tab.
+            This is the number you will use to log in to the admin portal via
+            OTP. If you have forgotten your phone number, use "Reset via
+            Internet Identity" on the login page to reach this tab.
           </p>
         </div>
       </div>
@@ -434,7 +425,7 @@ function SecurityTab() {
             </CardTitle>
             <CardDescription>
               Use your device fingerprint sensor to log in instantly without
-              typing a passkey.
+              entering a phone number and OTP.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -469,7 +460,7 @@ function SecurityTab() {
                   <p>
                     Registering your fingerprint will generate a new secure
                     passkey and link it to your fingerprint on this device. This
-                    replaces your current passkey.
+                    replaces your current admin phone passkey.
                   </p>
                 </div>
                 <Button
@@ -497,118 +488,50 @@ function SecurityTab() {
         </Card>
       )}
 
-      {/* Admin Credentials Section */}
+      {/* Admin Phone Number Section */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-4">
           <CardTitle className="font-display text-lg flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            Set Admin Credentials
+            <Phone className="w-5 h-5 text-primary" />
+            Set Admin Phone Number
           </CardTitle>
           <CardDescription>
-            Set your Gmail address and password for admin login.
+            Enter the mobile number that will be used for OTP-based admin login.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-5">
-            {/* Email */}
+            {/* Phone input */}
             <div className="space-y-2">
-              <Label htmlFor="admin-email" className="text-sm font-medium">
-                Email
+              <Label htmlFor="admin-phone" className="text-sm font-medium">
+                Admin Phone Number
               </Label>
               <Input
-                id="admin-email"
-                data-ocid="admin.security.email.input"
-                type="email"
-                placeholder="Enter your Gmail address…"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
+                id="admin-phone"
+                data-ocid="admin.security.phone.input"
+                type="tel"
+                placeholder="+91 9876543210"
+                value={adminPhone}
+                onChange={(e) => setAdminPhone(e.target.value)}
                 className="bg-input border-border"
-                autoComplete="email"
-                required
+                autoComplete="tel"
               />
-            </div>
-
-            {/* New Password */}
-            <div className="space-y-2">
-              <Label htmlFor="new-passkey" className="text-sm font-medium">
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="new-passkey"
-                  data-ocid="admin.security.new_passkey.input"
-                  type={showNew ? "text" : "password"}
-                  placeholder="Enter new password…"
-                  value={newPasskey}
-                  onChange={(e) => setNewPasskey(e.target.value)}
-                  className="pr-10 bg-input border-border"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNew((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={showNew ? "Hide password" : "Show password"}
-                >
-                  {showNew ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Confirm Password */}
-            <div className="space-y-2">
-              <Label htmlFor="confirm-passkey" className="text-sm font-medium">
-                Confirm Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="confirm-passkey"
-                  data-ocid="admin.security.confirm_passkey.input"
-                  type={showConfirm ? "text" : "password"}
-                  placeholder="Confirm new password…"
-                  value={confirmPasskey}
-                  onChange={(e) => setConfirmPasskey(e.target.value)}
-                  className="pr-10 bg-input border-border"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={showConfirm ? "Hide password" : "Show password"}
-                >
-                  {showConfirm ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
             </div>
 
             {/* Note */}
             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
               <Shield className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-primary" />
               <p>
-                Your Gmail address and password are required every new browser
-                session when fingerprint is not available. Store them somewhere
-                safe.
+                On each new login, you will enter this phone number and receive
+                a system-generated OTP to verify your identity. Make sure this
+                is the correct number.
               </p>
             </div>
 
             <Button
               data-ocid="admin.security.save_passkey.button"
               type="submit"
-              disabled={
-                setAdminPasskey.isPending ||
-                !adminEmail.trim() ||
-                !newPasskey.trim() ||
-                !confirmPasskey.trim()
-              }
+              disabled={setAdminPasskey.isPending || !adminPhone.trim()}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
             >
               {setAdminPasskey.isPending ? (
@@ -618,8 +541,8 @@ function SecurityTab() {
                 </>
               ) : (
                 <>
-                  <Shield className="w-4 h-4" />
-                  Save Admin Credentials
+                  <Phone className="w-4 h-4" />
+                  Save Admin Phone Number
                 </>
               )}
             </Button>
@@ -629,7 +552,7 @@ function SecurityTab() {
                 data-ocid="admin.security.success_state"
                 className="text-sm text-center text-[oklch(0.75_0.18_148)]"
               >
-                ✓ Credentials updated successfully
+                ✓ Phone number updated successfully
               </p>
             )}
             {setAdminPasskey.isError && (
@@ -637,7 +560,7 @@ function SecurityTab() {
                 data-ocid="admin.security.error_state"
                 className="text-sm text-center text-destructive"
               >
-                Failed to update credentials. Try again.
+                Failed to update phone number. Try again.
               </p>
             )}
           </form>
@@ -650,6 +573,14 @@ function SecurityTab() {
 // ── Uploaders Tab ─────────────────────────────────────────────────────────────
 
 function VideoTypeBadge({ videoType }: { videoType: VideoType }) {
+  if (videoType === VideoType.photo_to_video) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+        <Image className="w-2.5 h-2.5" />
+        Photo→Video
+      </span>
+    );
+  }
   if (videoType === VideoType.small) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">

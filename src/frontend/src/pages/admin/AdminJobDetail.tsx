@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   Film,
+  Image,
   IndianRupee,
   Loader2,
   Send,
@@ -137,10 +138,20 @@ export function AdminJobDetail({ jobId }: AdminJobDetailProps) {
               <h1 className="font-display text-2xl font-black tracking-tight">
                 Admin Job Detail
               </h1>
-              {job.videoType === VideoType.small ? (
+              {job.videoType === VideoType.photo_to_video ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                  <Image className="w-3 h-3" />
+                  Photo→Video
+                </span>
+              ) : job.videoType === VideoType.small ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">
                   <Zap className="w-3 h-3" />
                   Small Video
+                </span>
+              ) : job.videoType === VideoType.medium ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                  <Film className="w-3 h-3" />
+                  Medium Video
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/25">

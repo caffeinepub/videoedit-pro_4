@@ -197,10 +197,6 @@ const CONDITIONS_SECTIONS = [
 
 export function Footer() {
   const year = new Date().getFullYear();
-  const hostname =
-    typeof window !== "undefined" ? window.location.hostname : "";
-  const caffeineUrl = `https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(hostname)}`;
-
   // AI Assistant state
   const [aiOpen, setAiOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -269,16 +265,7 @@ export function Footer() {
 
           {/* Attribution */}
           <p className="text-xs text-muted-foreground text-center">
-            © {year}. Built with{" "}
-            <Heart className="inline w-3 h-3 text-primary mx-0.5" /> using{" "}
-            <a
-              href={caffeineUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline underline-offset-2"
-            >
-              caffeine.ai
-            </a>
+            © {year} Videro. All rights reserved.
           </p>
 
           {/* Footer links */}

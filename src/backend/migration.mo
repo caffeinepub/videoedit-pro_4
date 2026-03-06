@@ -1,18 +1,13 @@
 import Map "mo:core/Map";
-import Time "mo:core/Time";
 import Text "mo:core/Text";
+import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import Stripe "stripe/stripe";
-import AccessControl "authorization/access-control";
+import Time "mo:core/Time";
 import Principal "mo:core/Principal";
 
 module {
-  type OldVideoType = {
-    #small;
-    #long;
-  };
-
-  type OldJobStatus = {
+  type Status = {
     #pending_payment;
     #pending;
     #assigned;
@@ -20,21 +15,19 @@ module {
     #completed;
   };
 
-  type OldAppUserRole = {
+  type Role = {
     #client;
     #editor;
   };
 
-  type OldUserProfile = {
-    name : Text;
-    appRole : OldAppUserRole;
-  };
+  type OldVideoType = { #small; #medium; #long };
+  type NewVideoType = { #small; #medium; #long; #photo_to_video };
 
   type OldJob = {
     jobId : Text;
     clientId : Principal.Principal;
     assignedEditorId : ?Principal.Principal;
-    status : OldJobStatus;
+    status : Status;
     videoType : OldVideoType;
     sourceVideo : Storage.ExternalBlob;
     referenceVideo : Storage.ExternalBlob;
@@ -46,35 +39,11 @@ module {
     stripeSessionId : ?Text;
   };
 
-  type OldActor = {
-    accessControlState : AccessControl.AccessControlState;
-    jobs : Map.Map<Text, OldJob>;
-    userProfiles : Map.Map<Principal.Principal, OldUserProfile>;
-    nextJobId : Nat;
-    stripeConfig : ?Stripe.StripeConfiguration;
-    adminPasskey : ?Text;
-  };
-
-  type NewActor = {
-    accessControlState : AccessControl.AccessControlState;
-    jobs : Map.Map<Text, NewJob>;
-    userProfiles : Map.Map<Principal.Principal, OldUserProfile>;
-    nextJobId : Nat;
-    stripeConfig : ?Stripe.StripeConfiguration;
-    adminPasskey : ?Text;
-  };
-
-  type NewVideoType = {
-    #small;
-    #medium;
-    #long;
-  };
-
   type NewJob = {
     jobId : Text;
     clientId : Principal.Principal;
     assignedEditorId : ?Principal.Principal;
-    status : OldJobStatus;
+    status : Status;
     videoType : NewVideoType;
     sourceVideo : Storage.ExternalBlob;
     referenceVideo : Storage.ExternalBlob;
@@ -86,20 +55,33 @@ module {
     stripeSessionId : ?Text;
   };
 
+  type OldActor = {
+    jobs : Map.Map<Text, OldJob>;
+    userProfiles : Map.Map<Principal.Principal, { name : Text; appRole : Role }>;
+    nextJobId : Nat;
+    stripeConfig : ?Stripe.StripeConfiguration;
+    adminPasskey : ?Text;
+    accessControlState : AccessControl.AccessControlState;
+  };
+
+  type NewActor = {
+    jobs : Map.Map<Text, NewJob>;
+    userProfiles : Map.Map<Principal.Principal, { name : Text; appRole : Role }>;
+    nextJobId : Nat;
+    stripeConfig : ?Stripe.StripeConfiguration;
+    adminPasskey : ?Text;
+    accessControlState : AccessControl.AccessControlState;
+  };
+
   public func run(old : OldActor) : NewActor {
-    let newJobs = old.jobs.map<Text, OldJob, NewJob>(
-      func(_jobId, oldJob) {
-        let newVideoType = switch (oldJob.videoType) {
-          case (#small) { #small };
-          case (#long) { #long };
-        };
-        {
-          oldJob with
-          videoType = newVideoType;
-        };
+    let jobs = old.jobs.map<Text, OldJob, NewJob>(
+      func(_id, oldJob) {
+        { oldJob with videoType = #small };
       }
     );
-
-    { old with jobs = newJobs };
+    {
+      old with
+      jobs
+    };
   };
 };

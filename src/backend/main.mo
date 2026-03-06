@@ -9,11 +9,11 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Order "mo:core/Order";
 import Iter "mo:core/Iter";
-
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
+import Migration "migration";
 
-
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -23,6 +23,7 @@ actor {
     #small;
     #medium;
     #long;
+    #photo_to_video;
   };
 
   public type JobStatus = {
@@ -89,7 +90,6 @@ actor {
 
   let jobs = Map.empty<Text, Job>();
   let userProfiles = Map.empty<Principal.Principal, UserProfile>();
-
   var nextJobId = 0;
   var stripeConfig : ?Stripe.StripeConfiguration = null;
   var adminPasskey : ?Text = null;
@@ -105,6 +105,7 @@ actor {
       case (#small) { 10000 };
       case (#medium) { 50000 };
       case (#long) { 200000 };
+      case (#photo_to_video) { 5000 };
     };
   };
 
@@ -187,6 +188,7 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can access profiles");
     };
+
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
@@ -428,15 +430,15 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can check session status");
     };
 
-    // Verify the caller owns a job with this session ID or is an admin
+    // First find the job, then verify ownership - prevents session ID enumeration
     switch (findJobBySessionId(sessionId)) {
       case (?job) {
-        if (not AccessControl.isAdmin(accessControlState, caller) and job.clientId != caller) {
+        // Only the job owner (client) or admin can check the session status
+        if (job.clientId != caller and not AccessControl.isAdmin(accessControlState, caller)) {
           Runtime.trap("Unauthorized: Cannot check session status for other users' jobs");
         };
       };
       case (null) {
-        // Even admins cannot check status for sessions not associated with any job
         Runtime.trap("No job found with this session ID");
       };
     };
