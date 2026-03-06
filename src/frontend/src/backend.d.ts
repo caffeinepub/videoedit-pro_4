@@ -35,6 +35,11 @@ export interface http_request_result {
     body: Uint8Array;
     headers: Array<http_header>;
 }
+export interface RevenueSummary {
+    totalRevenue: bigint;
+    completedJobsCount: bigint;
+    paidJobsCount: bigint;
+}
 export interface Job {
     status: JobStatus;
     completedAt?: Time;
@@ -101,6 +106,7 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
+    adminSubmitFinalVideo(jobId: string, finalVideo: ExternalBlob): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     assignJob(jobId: string, editorId: Principal): Promise<void>;
     confirmPayment(jobId: string, stripeSessionId: string): Promise<void>;
@@ -109,13 +115,16 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getJob(jobId: string): Promise<Job>;
+    getRevenueSummary(): Promise<RevenueSummary>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
     isStripeConfigured(): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    setAdminPasskey(passkey: string): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
     submitFinalVideo(input: SubmitFinalVideoInput): Promise<void>;
     submitJob(input: JobInput): Promise<string>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
+    verifyAdminPasskey(passkey: string): Promise<boolean>;
 }

@@ -38,6 +38,11 @@ export type JobStatus = { 'assigned' : null } |
   { 'pending' : null } |
   { 'in_progress' : null } |
   { 'completed' : null };
+export interface RevenueSummary {
+  'totalRevenue' : bigint,
+  'completedJobsCount' : bigint,
+  'paidJobsCount' : bigint,
+}
 export interface ShoppingItem {
   'productName' : string,
   'currency' : string,
@@ -105,6 +110,7 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'adminSubmitFinalVideo' : ActorMethod<[string, ExternalBlob], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'assignJob' : ActorMethod<[string, Principal], undefined>,
   'confirmPayment' : ActorMethod<[string, string], undefined>,
@@ -116,15 +122,18 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getJob' : ActorMethod<[string], Job>,
+  'getRevenueSummary' : ActorMethod<[], RevenueSummary>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isStripeConfigured' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setAdminPasskey' : ActorMethod<[string], undefined>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
   'submitFinalVideo' : ActorMethod<[SubmitFinalVideoInput], undefined>,
   'submitJob' : ActorMethod<[JobInput], string>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
+  'verifyAdminPasskey' : ActorMethod<[string], boolean>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

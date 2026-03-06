@@ -1,56 +1,42 @@
 # VideoEdit Pro
 
 ## Current State
-New project. No existing code.
+
+- Full-stack video editing job platform with Stripe payments in INR.
+- Three roles: client (uploader), editor, admin.
+- Admin section exists at `/admin` protected by `AdminGuard` which checks `isCallerAdmin()` via Internet Identity.
+- Admin dashboard has tabs: Jobs, Revenue, Users, Stripe.
+- Navbar shows "Admin" link if the user is admin.
+- Uploaders (clients) use the same login flow as admins -- there is no separate admin-only passkey/PIN gate.
+- No dedicated admin login page or passkey gate -- admin section is reachable by anyone who happens to know the URL and is registered as admin in the backend.
 
 ## Requested Changes (Diff)
 
 ### Add
-- User authentication (clients and editors, admin role)
-- Video upload by clients (main video + reference video)
-- Admin dashboard to assign editing jobs to editors
-- Editor workspace to view assigned jobs, download source + reference videos
-- Editor uploads final edited video when done
-- Notification/status system: job statuses (pending, assigned, in_progress, completed)
-- Stripe payment flow: clients pay for editing service before or after upload
-- Client dashboard to track job status and download final edited video when ready
+
+- **Admin Passkey Gate**: A separate admin login screen at `/admin-login` that requires a secret passkey (PIN/password) stored in the backend. Only after entering the correct passkey does the user proceed to the admin dashboard.
+- **Backend: `setAdminPasskey` and `verifyAdminPasskey`** -- Admin can set the passkey; any caller can verify it (returns bool). Passkey stored as a hashed value in the backend.
+- **`AdminLoginPage`** -- A dedicated page at `/admin-login` with a passkey input. On success, stores a session flag (`adminAuthenticated`) in sessionStorage and redirects to `/admin`.
+- **Updated `AdminGuard`** -- Also checks for the `adminAuthenticated` sessionStorage flag in addition to `isCallerAdmin()`. If flag is missing, redirects to `/admin-login`.
+- **Admin passkey setup in Admin Dashboard** -- New "Security" tab in AdminDashboard where admin can set/change the passkey.
+- **Navbar**: Remove the "Admin" link entirely so uploaders cannot see or navigate to admin section. Admin navigates directly via `/admin-login`.
 
 ### Modify
-- N/A (new project)
+
+- `AdminGuard` in `App.tsx`: add check for `sessionStorage.getItem("adminAuthenticated")` in addition to `isCallerAdmin()`. If not present, show redirect to admin login page.
+- `AdminDashboard.tsx`: add "Security" tab with passkey change form.
+- `Navbar.tsx`: remove the admin dashboard link so it never appears in navigation for any user.
 
 ### Remove
-- N/A (new project)
+
+- Nothing removed structurally; the admin nav link is hidden.
 
 ## Implementation Plan
 
-### Backend (Motoko)
-1. User roles: client, editor, admin (via authorization component)
-2. Job data model: jobId, clientId, editorId, status, createdAt, price
-3. Video storage references: sourceVideoId, referenceVideoId, finalVideoId (via blob-storage component)
-4. Functions:
-   - `submitJob(sourceVideoId, referenceVideoId, notes)` -> creates job record, initiates Stripe payment
-   - `getMyJobs()` -> returns jobs for logged-in client
-   - `getAllJobs()` -> admin only, returns all jobs
-   - `assignJob(jobId, editorId)` -> admin assigns job to editor
-   - `getAssignedJobs()` -> returns jobs assigned to logged-in editor
-   - `submitFinalVideo(jobId, finalVideoId)` -> editor marks job complete, uploads final video
-   - `getJob(jobId)` -> returns job details
-   - `listEditors()` -> admin only, list users with editor role
-   - `setUserRole(userId, role)` -> admin sets user roles
-5. Stripe integration: payment session created on job submission; job activated after payment confirmed
-
-### Frontend
-- Landing/home page with service description and CTA
-- Auth pages (login/signup via Internet Identity)
-- Client portal:
-  - Upload page: upload source video + reference video, add notes, proceed to payment
-  - My Jobs page: list of submitted jobs with status badges
-  - Job detail page: status, download final video when ready
-- Admin dashboard:
-  - All jobs list with filters by status
-  - Assign editor to job
-  - Manage user roles (promote to editor)
-- Editor workspace:
-  - Assigned jobs list
-  - Job detail: download source + reference videos, upload final edited video
-- Stripe checkout integration for payment
+1. **Backend**: Add `adminPasskey` storage (hashed text), `setAdminPasskey(passkey: Text)` (admin only), `verifyAdminPasskey(passkey: Text) : Bool` (public query).
+2. **Frontend hooks**: Add `useSetAdminPasskey` and `useVerifyAdminPasskey` hooks in `useQueries.ts`.
+3. **`AdminLoginPage`**: New page at `/admin-login` -- passkey input, submit button, error state. On success sets `sessionStorage.adminAuthenticated = "true"` and navigates to `/admin`.
+4. **Update `AdminGuard`**: Check both `isCallerAdmin()` and `sessionStorage.adminAuthenticated`. If either fails, render redirect to `/admin-login`.
+5. **Update `AdminDashboard`**: Add "Security" tab with set/change passkey form.
+6. **Update `Navbar`**: Remove admin dashboard link so it is never visible to any user in the navbar.
+7. **Update `App.tsx`**: Add `/admin-login` route.

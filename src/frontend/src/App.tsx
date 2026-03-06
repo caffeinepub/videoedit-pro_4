@@ -5,7 +5,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  redirect,
+  useNavigate,
 } from "@tanstack/react-router";
 import { AppUserRole } from "./backend";
 import { Footer } from "./components/Footer";
@@ -18,6 +18,8 @@ import { LandingPage } from "./pages/LandingPage";
 import { PaymentFailure } from "./pages/PaymentFailure";
 import { PaymentSuccess } from "./pages/PaymentSuccess";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminJobDetail } from "./pages/admin/AdminJobDetail";
+import { AdminLoginPage } from "./pages/admin/AdminLoginPage";
 import { ClientDashboard } from "./pages/client/ClientDashboard";
 import { JobDetailPage } from "./pages/client/JobDetailPage";
 import { SubmitJobPage } from "./pages/client/SubmitJobPage";
@@ -95,6 +97,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function AdminGuard({ children }: { children: React.ReactNode }) {
   const { identity, isInitializing } = useInternetIdentity();
   const { data: isAdmin, isLoading } = useIsCallerAdmin();
+  const navigate = useNavigate();
 
   if (isInitializing || isLoading) {
     return (
@@ -106,6 +109,14 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
 
   if (!identity || !isAdmin) {
     return <AccessDenied />;
+  }
+
+  // Admin is authenticated but hasn't entered the passkey this session
+  const sessionVerified =
+    sessionStorage.getItem("adminAuthenticated") === "true";
+  if (!sessionVerified) {
+    navigate({ to: "/admin-login" });
+    return null;
   }
 
   return <>{children}</>;
@@ -198,6 +209,13 @@ const editorJobRoute = createRoute({
   },
 });
 
+// Admin login route (no guard)
+const adminLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin-login",
+  component: AdminLoginPage,
+});
+
 // Admin routes
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -207,6 +225,19 @@ const adminRoute = createRoute({
       <AdminDashboard />
     </AdminGuard>
   ),
+});
+
+const adminJobRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/jobs/$id",
+  component: function AdminJob() {
+    const { id } = adminJobRoute.useParams();
+    return (
+      <AdminGuard>
+        <AdminJobDetail jobId={id} />
+      </AdminGuard>
+    );
+  },
 });
 
 // Payment routes
@@ -231,7 +262,9 @@ const routeTree = rootRoute.addChildren([
   clientJobsRoute,
   editorRoute,
   editorJobRoute,
+  adminLoginRoute,
   adminRoute,
+  adminJobRoute,
   paymentSuccessRoute,
   paymentFailureRoute,
 ]);

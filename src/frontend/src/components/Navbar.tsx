@@ -2,14 +2,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  Briefcase,
-  Film,
-  LayoutDashboard,
-  Loader2,
-  LogOut,
-  User,
-} from "lucide-react";
+import { Briefcase, Film, Loader2, LogOut, User } from "lucide-react";
 import { AppUserRole } from "../backend";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useGetCallerUserProfile, useIsCallerAdmin } from "../hooks/useQueries";
@@ -47,8 +40,8 @@ export function Navbar() {
 
   const getDashboardLink = () => {
     if (!isAuthenticated) return null;
-    if (isAdmin)
-      return { href: "/admin", label: "Admin", Icon: LayoutDashboard };
+    // Admin users do NOT get a nav link — they access admin via /admin-login directly
+    if (isAdmin) return null;
     if (profile?.appRole === AppUserRole.editor)
       return { href: "/editor", label: "Editor", Icon: Briefcase };
     return { href: "/client", label: "My Jobs", Icon: Briefcase };

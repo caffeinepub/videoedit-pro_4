@@ -11,7 +11,9 @@ import Order "mo:core/Order";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   // Initialize the access control system
   let accessControlState = AccessControl.initState();
@@ -80,6 +82,12 @@ actor {
     finalVideo : Storage.ExternalBlob;
   };
 
+  public type RevenueSummary = {
+    totalRevenue : Nat;
+    paidJobsCount : Nat;
+    completedJobsCount : Nat;
+  };
+
   // Storage
   let jobs = Map.empty<Text, Job>();
   let userProfiles = Map.empty<Principal, UserProfile>();
@@ -88,6 +96,9 @@ actor {
 
   // Stripe Configuration
   var stripeConfig : ?Stripe.StripeConfiguration = null;
+
+  // Admin Passkey
+  var adminPasskey : ?Text = null;
 
   // Helper Functions
 
@@ -101,9 +112,24 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can perform this action");
     };
+    
+    switch (userProfiles.get(caller)) {
+      case (?profile) {
+        if (profile.appRole != #client) {
+          Runtime.trap("Unauthorized: Only clients can perform this action");
+        };
+      };
+      case (null) {
+        Runtime.trap("Unauthorized: Only clients can perform this action");
+      };
+    };
   };
 
   func ensureEditor(caller : Principal) {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can perform this action");
+    };
+    
     switch (userProfiles.get(caller)) {
       case (?profile) {
         if (profile.appRole != #editor) {
@@ -165,6 +191,10 @@ actor {
   // Job Queries
 
   public query ({ caller }) func getJob(jobId : Text) : async Job {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can access jobs");
+    };
+    
     switch (jobs.get(jobId)) {
       case (?job) {
         if (not checkJobAccess(job, caller)) {
@@ -177,8 +207,36 @@ actor {
   };
 
   public query ({ caller }) func getAllJobs() : async [Job] {
-    ensureClient(caller);
-    jobs.values().toArray();
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can access jobs");
+    };
+
+    // Admins can see all jobs
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      return jobs.values().toArray();
+    };
+
+    // Filter jobs based on user role
+    let filteredJobs = jobs.values().filter(func(job : Job) : Bool {
+      // Client can see their own jobs
+      if (job.clientId == caller) {
+        return true;
+      };
+
+      // Editor can see jobs assigned to them
+      switch (job.assignedEditorId) {
+        case (?editor) {
+          if (editor == caller) {
+            return true;
+          };
+        };
+        case (null) {};
+      };
+
+      false;
+    });
+
+    filteredJobs.toArray();
   };
 
   // Job Management
@@ -269,9 +327,74 @@ actor {
     };
   };
 
+  public shared ({ caller }) func adminSubmitFinalVideo(jobId : Text, finalVideo : Storage.ExternalBlob) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      Runtime.trap("Unauthorized: Only admin can submit final video");
+    };
+
+    switch (jobs.get(jobId)) {
+      case (?job) {
+        let updatedJob : Job = {
+          job with
+          finalVideo = ?finalVideo;
+          status = #completed;
+          completedAt = ?Time.now();
+        };
+        jobs.add(jobId, updatedJob);
+      };
+      case (null) { Runtime.trap("Job not found") };
+    };
+  };
+
+  public query ({ caller }) func getRevenueSummary() : async RevenueSummary {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      Runtime.trap("Unauthorized: Only admin can access revenue summary");
+    };
+
+    var totalRevenue = 0;
+    var paidJobsCount = 0;
+    var completedJobsCount = 0;
+
+    for ((_, job) in jobs.entries()) {
+      if (job.status != #pending_payment) {
+        totalRevenue += job.price;
+        paidJobsCount += 1;
+
+        if (job.status == #completed) {
+          completedJobsCount += 1;
+        };
+      };
+    };
+
+    {
+      totalRevenue;
+      paidJobsCount;
+      completedJobsCount;
+    };
+  };
+
+  // Admin Passkey Functions
+
+  public shared ({ caller }) func setAdminPasskey(passkey : Text) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      Runtime.trap("Unauthorized: Only admin can set passkey");
+    };
+    adminPasskey := ?passkey;
+  };
+
+  public query func verifyAdminPasskey(passkey : Text) : async Bool {
+    // Public query - no authorization check needed, but this is a security risk
+    // Anyone can attempt to verify the passkey
+    switch (adminPasskey) {
+      case (?storedPasskey) { storedPasskey == passkey };
+      case (null) { false };
+    };
+  };
+
   // Stripe Functions
 
   public query func isStripeConfigured() : async Bool {
+    // Public query - anyone can check if Stripe is configured
     stripeConfig != null;
   };
 
@@ -289,11 +412,17 @@ actor {
     };
   };
 
-  public func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
+  public shared ({ caller }) func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can check session status");
+    };
     await Stripe.getSessionStatus(getStripeConfiguration(), sessionId, transform);
   };
 
   public shared ({ caller }) func createCheckoutSession(items : [Stripe.ShoppingItem], successUrl : Text, cancelUrl : Text) : async Text {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can create checkout sessions");
+    };
     await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
   };
 

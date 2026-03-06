@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -25,9 +26,14 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
+  Eye,
+  EyeOff,
   Film,
+  IndianRupee,
   LayoutDashboard,
   Loader2,
+  Shield,
+  TrendingUp,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -40,7 +46,9 @@ import { StatusBadge } from "../../components/StatusBadge";
 import {
   useAssignJob,
   useGetAllJobs,
+  useGetRevenueSummary,
   useIsStripeConfigured,
+  useSetAdminPasskey,
 } from "../../hooks/useQueries";
 import { ManageUsers } from "./ManageUsers";
 import { StripeSetup } from "./StripeSetup";
@@ -76,8 +84,14 @@ function AssignJobRow({ job }: { job: Job }) {
 
   return (
     <TableRow className="border-border hover:bg-muted/20">
-      <TableCell className="font-mono text-xs text-muted-foreground">
-        #{job.jobId.slice(0, 12)}…
+      <TableCell className="font-mono text-xs">
+        <Link
+          to="/admin/jobs/$id"
+          params={{ id: job.jobId }}
+          className="text-primary hover:underline"
+        >
+          #{job.jobId.slice(0, 12)}…
+        </Link>
       </TableCell>
       <TableCell>
         <StatusBadge status={job.status} />
@@ -122,6 +136,326 @@ function AssignJobRow({ job }: { job: Job }) {
         )}
       </TableCell>
     </TableRow>
+  );
+}
+
+function truncatePrincipal(p: { toString(): string }) {
+  const s = p.toString();
+  if (s.length <= 20) return s;
+  return `${s.slice(0, 12)}…${s.slice(-6)}`;
+}
+
+function RevenueTab({ allJobs }: { allJobs: Job[] }) {
+  const { data: summary, isLoading } = useGetRevenueSummary();
+
+  const paidJobs = allJobs.filter(
+    (j) => j.status !== JobStatus.pending_payment,
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Summary stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="bg-card border-border">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
+                Total Revenue
+              </p>
+              <IndianRupee className="w-4 h-4 text-[oklch(0.75_0.18_148)]" />
+            </div>
+            {isLoading ? (
+              <Skeleton className="h-9 w-32" />
+            ) : (
+              <p className="font-display text-2xl font-black text-[oklch(0.75_0.18_148)]">
+                ₹
+                {(Number(summary?.totalRevenue ?? 0) / 100).toLocaleString(
+                  "en-IN",
+                )}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
+                Paid Jobs
+              </p>
+              <CreditCard className="w-4 h-4 text-[oklch(0.85_0.16_82)]" />
+            </div>
+            {isLoading ? (
+              <Skeleton className="h-9 w-16" />
+            ) : (
+              <p className="font-display text-3xl font-black text-[oklch(0.85_0.16_82)]">
+                {summary?.paidJobsCount?.toString() ?? "0"}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
+                Completed Jobs
+              </p>
+              <TrendingUp className="w-4 h-4 text-primary" />
+            </div>
+            {isLoading ? (
+              <Skeleton className="h-9 w-16" />
+            ) : (
+              <p className="font-display text-3xl font-black text-primary">
+                {summary?.completedJobsCount?.toString() ?? "0"}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Paid jobs table */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-4">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <IndianRupee className="w-5 h-5 text-primary" />
+            Payment Received Jobs
+          </CardTitle>
+          <CardDescription>
+            All jobs where payment has been confirmed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {paidJobs.length === 0 ? (
+            <div
+              data-ocid="admin.revenue.empty_state"
+              className="text-center py-12 text-muted-foreground"
+            >
+              <IndianRupee className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No paid jobs yet</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table data-ocid="admin.revenue.table">
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-xs font-mono text-muted-foreground">
+                      JOB ID
+                    </TableHead>
+                    <TableHead className="text-xs font-mono text-muted-foreground">
+                      CLIENT
+                    </TableHead>
+                    <TableHead className="text-xs font-mono text-muted-foreground">
+                      AMOUNT
+                    </TableHead>
+                    <TableHead className="text-xs font-mono text-muted-foreground">
+                      STATUS
+                    </TableHead>
+                    <TableHead className="text-xs font-mono text-muted-foreground">
+                      DATE
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paidJobs.map((job) => (
+                    <TableRow
+                      key={job.jobId}
+                      className="border-border hover:bg-muted/20"
+                    >
+                      <TableCell className="font-mono text-xs">
+                        <Link
+                          to="/admin/jobs/$id"
+                          params={{ id: job.jobId }}
+                          className="text-primary hover:underline"
+                        >
+                          #{job.jobId.slice(0, 12)}…
+                        </Link>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {truncatePrincipal(job.clientId)}
+                      </TableCell>
+                      <TableCell className="text-xs font-display font-semibold text-[oklch(0.75_0.18_148)]">
+                        ₹{(Number(job.price) / 100).toLocaleString("en-IN")}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={job.status} />
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(job.createdAt)}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SecurityTab() {
+  const [newPasskey, setNewPasskey] = useState("");
+  const [confirmPasskey, setConfirmPasskey] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const setAdminPasskey = useSetAdminPasskey();
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPasskey.trim()) {
+      toast.error("Passkey cannot be empty.");
+      return;
+    }
+    if (newPasskey !== confirmPasskey) {
+      toast.error("Passkeys do not match.");
+      return;
+    }
+    try {
+      await setAdminPasskey.mutateAsync(newPasskey.trim());
+      toast.success("Admin passkey updated successfully.");
+      setNewPasskey("");
+      setConfirmPasskey("");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update passkey.",
+      );
+    }
+  };
+
+  return (
+    <div className="max-w-lg space-y-6">
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-4">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            Admin Passkey
+          </CardTitle>
+          <CardDescription>
+            Set or change the passkey required to access the admin section. Keep
+            it secret — this is separate from your Internet Identity login.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSave} className="space-y-5">
+            {/* New Passkey */}
+            <div className="space-y-2">
+              <Label htmlFor="new-passkey" className="text-sm font-medium">
+                New Passkey
+              </Label>
+              <div className="relative">
+                <Input
+                  id="new-passkey"
+                  data-ocid="admin.security.new_passkey.input"
+                  type={showNew ? "text" : "password"}
+                  placeholder="Enter new passkey…"
+                  value={newPasskey}
+                  onChange={(e) => setNewPasskey(e.target.value)}
+                  className="pr-10 bg-input border-border"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showNew ? "Hide passkey" : "Show passkey"}
+                >
+                  {showNew ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Passkey */}
+            <div className="space-y-2">
+              <Label htmlFor="confirm-passkey" className="text-sm font-medium">
+                Confirm Passkey
+              </Label>
+              <div className="relative">
+                <Input
+                  id="confirm-passkey"
+                  data-ocid="admin.security.confirm_passkey.input"
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="Confirm new passkey…"
+                  value={confirmPasskey}
+                  onChange={(e) => setConfirmPasskey(e.target.value)}
+                  className="pr-10 bg-input border-border"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showConfirm ? "Hide passkey" : "Show passkey"}
+                >
+                  {showConfirm ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Note */}
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
+              <Shield className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-primary" />
+              <p>
+                This passkey is required every new browser session to access the
+                admin section. Store it somewhere safe.
+              </p>
+            </div>
+
+            <Button
+              data-ocid="admin.security.save_passkey.button"
+              type="submit"
+              disabled={
+                setAdminPasskey.isPending ||
+                !newPasskey.trim() ||
+                !confirmPasskey.trim()
+              }
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
+            >
+              {setAdminPasskey.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4" />
+                  Save Passkey
+                </>
+              )}
+            </Button>
+
+            {setAdminPasskey.isSuccess && (
+              <p
+                data-ocid="admin.security.success_state"
+                className="text-sm text-center text-[oklch(0.75_0.18_148)]"
+              >
+                ✓ Passkey updated successfully
+              </p>
+            )}
+            {setAdminPasskey.isError && (
+              <p
+                data-ocid="admin.security.error_state"
+                className="text-sm text-center text-destructive"
+              >
+                Failed to update passkey. Try again.
+              </p>
+            )}
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -236,6 +570,14 @@ export function AdminDashboard() {
               Jobs
             </TabsTrigger>
             <TabsTrigger
+              value="revenue"
+              data-ocid="admin.revenue.tab"
+              className="gap-2"
+            >
+              <IndianRupee className="w-4 h-4" />
+              Revenue
+            </TabsTrigger>
+            <TabsTrigger
               value="users"
               data-ocid="admin.users.tab"
               className="gap-2"
@@ -250,6 +592,14 @@ export function AdminDashboard() {
             >
               <CreditCard className="w-4 h-4" />
               Stripe
+            </TabsTrigger>
+            <TabsTrigger
+              value="security"
+              data-ocid="admin.security.tab"
+              className="gap-2"
+            >
+              <Shield className="w-4 h-4" />
+              Security
             </TabsTrigger>
           </TabsList>
 
@@ -345,6 +695,11 @@ export function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* Revenue tab */}
+          <TabsContent value="revenue" className="mt-0">
+            <RevenueTab allJobs={allJobs || []} />
+          </TabsContent>
+
           {/* Users tab */}
           <TabsContent value="users" className="mt-0">
             <ManageUsers />
@@ -353,6 +708,11 @@ export function AdminDashboard() {
           {/* Stripe tab */}
           <TabsContent value="stripe" className="mt-0">
             <StripeSetup />
+          </TabsContent>
+
+          {/* Security tab */}
+          <TabsContent value="security" className="mt-0">
+            <SecurityTab />
           </TabsContent>
         </Tabs>
       </motion.div>

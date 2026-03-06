@@ -300,3 +300,70 @@ export function useGetStripeSessionStatus(sessionId: string | null) {
     retry: 3,
   });
 }
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+export function useAdminSubmitFinalVideo() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      videoFile,
+      onProgress,
+    }: {
+      jobId: string;
+      videoFile: File;
+      onProgress?: (p: number) => void;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      const bytes = new Uint8Array(await videoFile.arrayBuffer());
+      const finalVideo = ExternalBlob.fromBytes(bytes).withUploadProgress(
+        onProgress || (() => {}),
+      );
+      await actor.adminSubmitFinalVideo(jobId, finalVideo);
+    },
+    onSuccess: (_, { jobId }) => {
+      queryClient.invalidateQueries({ queryKey: ["allJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["revenueSummary"] });
+    },
+  });
+}
+
+export function useGetRevenueSummary() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery({
+    queryKey: ["revenueSummary"],
+    queryFn: async () => {
+      if (!actor) throw new Error("Actor not available");
+      return actor.getRevenueSummary();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useSetAdminPasskey() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async (passkey: string) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.setAdminPasskey(passkey);
+    },
+  });
+}
+
+export function useVerifyAdminPasskey() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async (passkey: string): Promise<boolean> => {
+      if (!actor) throw new Error("Actor not available");
+      return actor.verifyAdminPasskey(passkey);
+    },
+  });
+}

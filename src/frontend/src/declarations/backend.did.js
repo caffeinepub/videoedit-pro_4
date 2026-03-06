@@ -19,6 +19,7 @@ export const _CaffeineStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const ExternalBlob = IDL.Vec(IDL.Nat8);
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
@@ -39,7 +40,6 @@ export const JobStatus = IDL.Variant({
   'completed' : IDL.Null,
 });
 export const Time = IDL.Int;
-export const ExternalBlob = IDL.Vec(IDL.Nat8);
 export const Job = IDL.Record({
   'status' : JobStatus,
   'completedAt' : IDL.Opt(Time),
@@ -61,6 +61,11 @@ export const AppUserRole = IDL.Variant({
 export const UserProfile = IDL.Record({
   'appRole' : AppUserRole,
   'name' : IDL.Text,
+});
+export const RevenueSummary = IDL.Record({
+  'totalRevenue' : IDL.Nat,
+  'completedJobsCount' : IDL.Nat,
+  'paidJobsCount' : IDL.Nat,
 });
 export const StripeSessionStatus = IDL.Variant({
   'completed' : IDL.Record({
@@ -130,6 +135,7 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'adminSubmitFinalVideo' : IDL.Func([IDL.Text, ExternalBlob], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'assignJob' : IDL.Func([IDL.Text, IDL.Principal], [], []),
   'confirmPayment' : IDL.Func([IDL.Text, IDL.Text], [], []),
@@ -142,6 +148,7 @@ export const idlService = IDL.Service({
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getJob' : IDL.Func([IDL.Text], [Job], ['query']),
+  'getRevenueSummary' : IDL.Func([], [RevenueSummary], ['query']),
   'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
@@ -151,6 +158,7 @@ export const idlService = IDL.Service({
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'setAdminPasskey' : IDL.Func([IDL.Text], [], []),
   'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
   'submitFinalVideo' : IDL.Func([SubmitFinalVideoInput], [], []),
   'submitJob' : IDL.Func([JobInput], [IDL.Text], []),
@@ -159,6 +167,7 @@ export const idlService = IDL.Service({
       [TransformationOutput],
       ['query'],
     ),
+  'verifyAdminPasskey' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
 });
 
 export const idlInitArgs = [];
@@ -175,6 +184,7 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const ExternalBlob = IDL.Vec(IDL.Nat8);
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
@@ -195,7 +205,6 @@ export const idlFactory = ({ IDL }) => {
     'completed' : IDL.Null,
   });
   const Time = IDL.Int;
-  const ExternalBlob = IDL.Vec(IDL.Nat8);
   const Job = IDL.Record({
     'status' : JobStatus,
     'completedAt' : IDL.Opt(Time),
@@ -214,6 +223,11 @@ export const idlFactory = ({ IDL }) => {
   const UserProfile = IDL.Record({
     'appRole' : AppUserRole,
     'name' : IDL.Text,
+  });
+  const RevenueSummary = IDL.Record({
+    'totalRevenue' : IDL.Nat,
+    'completedJobsCount' : IDL.Nat,
+    'paidJobsCount' : IDL.Nat,
   });
   const StripeSessionStatus = IDL.Variant({
     'completed' : IDL.Record({
@@ -280,6 +294,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'adminSubmitFinalVideo' : IDL.Func([IDL.Text, ExternalBlob], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'assignJob' : IDL.Func([IDL.Text, IDL.Principal], [], []),
     'confirmPayment' : IDL.Func([IDL.Text, IDL.Text], [], []),
@@ -292,6 +307,7 @@ export const idlFactory = ({ IDL }) => {
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getJob' : IDL.Func([IDL.Text], [Job], ['query']),
+    'getRevenueSummary' : IDL.Func([], [RevenueSummary], ['query']),
     'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
@@ -301,6 +317,7 @@ export const idlFactory = ({ IDL }) => {
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'setAdminPasskey' : IDL.Func([IDL.Text], [], []),
     'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
     'submitFinalVideo' : IDL.Func([SubmitFinalVideoInput], [], []),
     'submitJob' : IDL.Func([JobInput], [IDL.Text], []),
@@ -309,6 +326,7 @@ export const idlFactory = ({ IDL }) => {
         [TransformationOutput],
         ['query'],
       ),
+    'verifyAdminPasskey' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
   });
 };
 
