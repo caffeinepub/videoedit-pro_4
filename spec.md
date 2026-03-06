@@ -1,41 +1,32 @@
 # videru
 
 ## Current State
-- Two video types: Small (₹500) and Long (₹2,000)
-- Submit page uses "job" terminology throughout
-- Client dashboard shows "Jobs" section with job-centric labels
-- File dropzone shows "up to 2GB" limit
-- LandingPage pricing shows 2 cards (Small ₹500, Long ₹2,000)
-- Backend `VideoType` has `#small` and `#long` only
-- `getVideoPrice` returns 50000 for small and 200000 for long (paise)
+- Admin Dashboard has tabs: Jobs, Revenue, Users, Stripe, Security.
+- Jobs tab shows all jobs in a flat table with assign-editor functionality.
+- AdminJobDetail page shows per-job: source video download, reference video download, and upload/resend edited video.
+- No section that groups jobs by individual uploader (clientId) for a quick per-uploader view.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Medium video tier (₹500) between small and long
-- New pricing: Small = ₹100, Medium = ₹500, Long = ₹2,000
-- Third tab on SubmitJobPage for "Medium Video"
-- Third pricing card on LandingPage for "Medium Video"
+- New "Uploaders" tab in Admin Dashboard (between Jobs and Revenue).
+- The Uploaders tab shows each unique uploader as a separate card/section, identified by their clientId (truncated principal).
+- Each uploader card lists all their submitted jobs.
+- For each job inside an uploader card:
+  - Download button for Source Video (original video).
+  - Download button for Reference Video.
+  - A "Resend Edited Video" inline upload section (or link to AdminJobDetail) that lets admin upload/resend the final edited video directly.
+- Uploader cards are collapsible or expanded by default.
+- Show uploader job count and total payment amount on the card header.
 
 ### Modify
-- Remove all "job" / "Jobs" language from client-facing UI (ClientDashboard, SubmitJobPage, LandingPage CTA, NavBar if applicable) — replace with "video", "uploads", "my videos", "submit a video", "New Upload", etc.
-- Update file size hint in Dropzone from "up to 2GB" to "up to 100 GB"
-- Update backend `VideoType` to add `#medium` variant
-- Update `getVideoPrice` for: small=10000 (₹100), medium=50000 (₹500), long=200000 (₹2,000)
-- Update `backend.d.ts` VideoType enum to include `medium`
-- Update `VIDEO_TYPES` config in SubmitJobPage to include medium entry (₹100 small, ₹500 medium, ₹2,000 long)
-- Update LandingPage hero text "Starting at just ₹500" → "Starting at just ₹100"
-- Update LandingPage pricing section to 3 cards
-- Update StatusBadge / job list items to use video language
+- AdminDashboard: add a new "Uploaders" tab with the UploaderSection component.
 
 ### Remove
-- "Job" wording from all client-facing pages (not admin — admin can keep job language)
+- Nothing removed.
 
 ## Implementation Plan
-1. Update backend `main.mo`: add `#medium` to `VideoType`, update `getVideoPrice` (small=10000, medium=50000, long=200000)
-2. Update `backend.d.ts`: add `medium` to `VideoType` enum
-3. Update `SubmitJobPage.tsx`: add medium tab + VIDEO_TYPES entry, rename "job" to "video" in labels/buttons/headings, update dropzone size hint to "up to 100 GB"
-4. Update `ClientDashboard.tsx`: rename "Jobs" → "My Videos", "New Job" → "New Upload", etc.
-5. Update `LandingPage.tsx`: add third pricing card for Medium (₹500), update Small to ₹100, update hero starting price to ₹100, update CTA copy
-6. Update `useQueries.ts` if needed for new video type mapping
-7. Check admin pages — keep job language there, just update VideoType badge for "Medium"
+1. Create a new `UploaderJobRow` component inside AdminDashboard.tsx that shows source video download, reference video download, and a mini resend-video section for a single job.
+2. Create a `UploadersTab` component that groups allJobs by clientId, renders one collapsible card per uploader, listing their jobs using `UploaderJobRow`.
+3. Add the "Uploaders" tab trigger and TabsContent for the new `UploadersTab` in the AdminDashboard tabs.
+4. Reuse `useAdminSubmitFinalVideo` hook for the inline resend functionality per job.

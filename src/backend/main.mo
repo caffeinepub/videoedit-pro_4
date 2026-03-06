@@ -9,11 +9,11 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Order "mo:core/Order";
 import Iter "mo:core/Iter";
-import Migration "migration";
+
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 
-(with migration = Migration.run)
+
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
