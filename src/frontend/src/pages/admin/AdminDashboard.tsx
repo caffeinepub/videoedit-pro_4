@@ -41,7 +41,7 @@ import {
   IndianRupee,
   LayoutDashboard,
   Loader2,
-  Phone,
+  Mail,
   RefreshCw,
   Send,
   Shield,
@@ -345,7 +345,8 @@ function RevenueTab({ allJobs }: { allJobs: Job[] }) {
 }
 
 function SecurityTab() {
-  const [adminPhone, setAdminPhone] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [fingerprintRegistered, setFingerprintRegistered] = useState(
     hasFingerprintRegistered,
   );
@@ -355,18 +356,26 @@ function SecurityTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const digits = adminPhone.replace(/\D/g, "");
-    if (digits.length < 10) {
-      toast.error("Please enter a valid phone number with at least 10 digits.");
+    if (!adminEmail.trim()) {
+      toast.error("Please enter your admin email address.");
+      return;
+    }
+    if (adminPassword.length < 6) {
+      toast.error("Password must be at least 6 characters.");
       return;
     }
     try {
-      await setAdminPasskey.mutateAsync(adminPhone.trim());
-      toast.success("Admin phone number updated successfully.");
-      setAdminPhone("");
+      await setAdminPasskey.mutateAsync(
+        `${adminEmail.trim()}:${adminPassword}`,
+      );
+      toast.success("Admin email and password updated successfully.");
+      setAdminEmail("");
+      setAdminPassword("");
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to update phone number.",
+        err instanceof Error
+          ? err.message
+          : "Failed to update admin credentials.",
       );
     }
   };
@@ -402,15 +411,15 @@ function SecurityTab() {
         data-ocid="admin.security.info_panel"
         className="flex items-start gap-3 p-4 rounded-lg bg-blue-500/10 border border-blue-500/25 text-sm"
       >
-        <Phone className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-400" />
+        <Mail className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-400" />
         <div>
           <p className="font-medium text-blue-300 mb-0.5">
-            Set your admin phone number below.
+            Set your admin email and password below.
           </p>
           <p className="text-muted-foreground text-xs leading-relaxed">
-            This is the number you will use to log in to the admin portal via
-            OTP. If you have forgotten your phone number, use "Reset via
-            Internet Identity" on the login page to reach this tab.
+            These will be used to log in to the admin portal. If you have
+            forgotten your credentials, use "Reset via Internet Identity" on the
+            login page to reach this tab.
           </p>
         </div>
       </div>
@@ -425,7 +434,7 @@ function SecurityTab() {
             </CardTitle>
             <CardDescription>
               Use your device fingerprint sensor to log in instantly without
-              entering a phone number and OTP.
+              entering your email and password.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -460,7 +469,7 @@ function SecurityTab() {
                   <p>
                     Registering your fingerprint will generate a new secure
                     passkey and link it to your fingerprint on this device. This
-                    replaces your current admin phone passkey.
+                    replaces your current admin email and password passkey.
                   </p>
                 </div>
                 <Button
@@ -488,33 +497,56 @@ function SecurityTab() {
         </Card>
       )}
 
-      {/* Admin Phone Number Section */}
+      {/* Admin Credentials Section */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-4">
           <CardTitle className="font-display text-lg flex items-center gap-2">
-            <Phone className="w-5 h-5 text-primary" />
-            Set Admin Phone Number
+            <Mail className="w-5 h-5 text-primary" />
+            Set Admin Credentials
           </CardTitle>
           <CardDescription>
-            Enter the mobile number that will be used for OTP-based admin login.
+            Set the email and password used to log in to the admin portal.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-5">
-            {/* Phone input */}
+            {/* Email input */}
             <div className="space-y-2">
-              <Label htmlFor="admin-phone" className="text-sm font-medium">
-                Admin Phone Number
+              <Label
+                htmlFor="security-admin-email"
+                className="text-sm font-medium"
+              >
+                Admin Email
               </Label>
               <Input
-                id="admin-phone"
-                data-ocid="admin.security.phone.input"
-                type="tel"
-                placeholder="+91 9876543210"
-                value={adminPhone}
-                onChange={(e) => setAdminPhone(e.target.value)}
+                id="security-admin-email"
+                data-ocid="admin.security.email.input"
+                type="email"
+                placeholder="your@gmail.com"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
                 className="bg-input border-border"
-                autoComplete="tel"
+                autoComplete="email"
+              />
+            </div>
+
+            {/* Password input */}
+            <div className="space-y-2">
+              <Label
+                htmlFor="security-admin-password"
+                className="text-sm font-medium"
+              >
+                Admin Password
+              </Label>
+              <Input
+                id="security-admin-password"
+                data-ocid="admin.security.password.input"
+                type="password"
+                placeholder="Min. 6 characters"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="bg-input border-border"
+                autoComplete="new-password"
               />
             </div>
 
@@ -522,16 +554,19 @@ function SecurityTab() {
             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
               <Shield className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-primary" />
               <p>
-                On each new login, you will enter this phone number and receive
-                a system-generated OTP to verify your identity. Make sure this
-                is the correct number.
+                You will use this email and password every time you log in to
+                the admin portal. Keep them safe and do not share them.
               </p>
             </div>
 
             <Button
               data-ocid="admin.security.save_passkey.button"
               type="submit"
-              disabled={setAdminPasskey.isPending || !adminPhone.trim()}
+              disabled={
+                setAdminPasskey.isPending ||
+                !adminEmail.trim() ||
+                adminPassword.length < 6
+              }
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
             >
               {setAdminPasskey.isPending ? (
@@ -541,8 +576,8 @@ function SecurityTab() {
                 </>
               ) : (
                 <>
-                  <Phone className="w-4 h-4" />
-                  Save Admin Phone Number
+                  <Mail className="w-4 h-4" />
+                  Save Admin Credentials
                 </>
               )}
             </Button>
@@ -552,7 +587,7 @@ function SecurityTab() {
                 data-ocid="admin.security.success_state"
                 className="text-sm text-center text-[oklch(0.75_0.18_148)]"
               >
-                ✓ Phone number updated successfully
+                ✓ Admin email and password updated successfully
               </p>
             )}
             {setAdminPasskey.isError && (
@@ -560,7 +595,7 @@ function SecurityTab() {
                 data-ocid="admin.security.error_state"
                 className="text-sm text-center text-destructive"
               >
-                Failed to update phone number. Try again.
+                Failed to update credentials. Try again.
               </p>
             )}
           </form>
