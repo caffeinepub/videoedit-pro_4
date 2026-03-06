@@ -1,0 +1,25 @@
+{
+  "name": "Videro",
+  "short_name": "Videro",
+  "description": "Professional video editing platform. Upload, edit, and receive your videos.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f0a1e",
+  "theme_color": "#7c3aed",
+  "categories": ["video", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/assets/generated/videro-icon-192.dim_192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/videro-icon-512.dim_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

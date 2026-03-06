@@ -4,6 +4,15 @@ import App from "./App";
 import { InternetIdentityProvider } from "./hooks/useInternetIdentity";
 import "../index.css";
 
+// Register service worker for PWA support
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .catch((err) => console.warn("SW registration failed:", err));
+  });
+}
+
 BigInt.prototype.toJSON = function () {
   return this.toString();
 };

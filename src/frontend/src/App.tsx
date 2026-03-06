@@ -11,6 +11,7 @@ import { AppUserRole } from "./backend";
 import { EmailAuthModal } from "./components/EmailAuthModal";
 import { Footer } from "./components/Footer";
 import { Navbar } from "./components/Navbar";
+import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { useEmailAuth } from "./hooks/useEmailAuth";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useGetCallerUserProfile, useIsCallerAdmin } from "./hooks/useQueries";
@@ -37,6 +38,7 @@ function RootLayout() {
         <Outlet />
       </main>
       <Footer />
+      <PWAInstallBanner />
       <Toaster
         position="bottom-right"
         toastOptions={{
