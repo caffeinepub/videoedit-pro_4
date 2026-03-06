@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  DollarSign,
   FileVideo,
+  IndianRupee,
   Loader2,
   StickyNote,
 } from "lucide-react";
@@ -160,14 +160,14 @@ export function SubmitJobPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-primary" />
+                  <IndianRupee className="w-5 h-5 text-primary" />
                   <span className="font-display font-semibold">
                     Editing fee
                   </span>
                 </div>
                 <div className="text-right">
                   <p className="font-display text-2xl font-black text-gradient-amber">
-                    $29.99
+                    ₹2,499
                   </p>
                   <p className="text-xs text-muted-foreground">
                     charged via Stripe
@@ -191,7 +191,7 @@ export function SubmitJobPage() {
               </>
             ) : (
               <>
-                Submit &amp; Pay $29.99
+                Submit &amp; Pay ₹2,499
                 <ArrowLeft className="w-4 h-4 ml-2 rotate-180" />
               </>
             )}

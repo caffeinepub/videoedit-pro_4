@@ -160,7 +160,7 @@ export function useSubmitJob() {
         sourceVideo: sourceBlob,
         referenceVideo: referenceBlob,
         notes,
-        price: BigInt(2999),
+        price: BigInt(249900),
       });
 
       return checkoutUrl;

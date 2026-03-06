@@ -86,7 +86,7 @@ function AssignJobRow({ job }: { job: Job }) {
         {formatDate(job.createdAt)}
       </TableCell>
       <TableCell className="text-xs text-primary font-display font-semibold">
-        ${(Number(job.price) / 100).toFixed(2)}
+        ₹{(Number(job.price) / 100).toLocaleString("en-IN")}
       </TableCell>
       <TableCell>
         {job.status === JobStatus.pending ? (

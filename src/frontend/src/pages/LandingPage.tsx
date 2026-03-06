@@ -112,7 +112,7 @@ export function LandingPage() {
               Upload your raw footage with a reference video, and our supervised
               team of professional editors will transform it into exactly what
               you imagined. Starting at just{" "}
-              <span className="text-primary font-semibold">$29.99</span>.
+              <span className="text-primary font-semibold">₹2,499</span>.
             </motion.p>
 
             <motion.div
@@ -258,10 +258,7 @@ export function LandingPage() {
 
               <div className="flex items-end justify-center gap-2 mb-4">
                 <span className="text-6xl font-display font-black text-gradient-amber">
-                  $29
-                </span>
-                <span className="text-2xl font-display font-bold text-primary mb-1">
-                  .99
+                  ₹2,499
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mb-8 font-mono">

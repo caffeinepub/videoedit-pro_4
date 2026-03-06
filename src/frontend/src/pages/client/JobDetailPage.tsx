@@ -8,10 +8,10 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  DollarSign,
   Download,
   FileText,
   Film,
+  IndianRupee,
   Loader2,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -191,9 +191,9 @@ export function JobDetailPage({ jobId }: JobDetailPageProps) {
                     PRICE
                   </p>
                   <div className="flex items-center gap-1.5 text-sm">
-                    <DollarSign className="w-3.5 h-3.5 text-primary" />
+                    <IndianRupee className="w-3.5 h-3.5 text-primary" />
                     <span className="font-display font-semibold text-primary">
-                      ${(Number(job.price) / 100).toFixed(2)}
+                      {(Number(job.price) / 100).toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>

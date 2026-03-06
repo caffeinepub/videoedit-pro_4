@@ -145,7 +145,7 @@ export function EditorJobDetail({ jobId }: EditorJobDetailProps) {
                     PRICE
                   </p>
                   <span className="text-primary font-display font-semibold">
-                    ${(Number(job.price) / 100).toFixed(2)}
+                    ₹{(Number(job.price) / 100).toLocaleString("en-IN")}
                   </span>
                 </div>
               </div>
