@@ -1,5 +1,5 @@
-import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
+import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 import Stripe "stripe/stripe";
@@ -9,18 +9,21 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Order "mo:core/Order";
 import Iter "mo:core/Iter";
+import Migration "migration";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 
-
-
+(with migration = Migration.run)
 actor {
-  // Initialize the access control system
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
   include MixinStorage();
 
-  // Data Structures
+  public type VideoType = {
+    #small;
+    #medium;
+    #long;
+  };
 
   public type JobStatus = {
     #pending_payment;
@@ -57,9 +60,10 @@ actor {
 
   public type Job = {
     jobId : Text;
-    clientId : Principal;
-    assignedEditorId : ?Principal;
+    clientId : Principal.Principal;
+    assignedEditorId : ?Principal.Principal;
     status : JobStatus;
+    videoType : VideoType;
     sourceVideo : Storage.ExternalBlob;
     referenceVideo : Storage.ExternalBlob;
     finalVideo : ?Storage.ExternalBlob;
@@ -71,15 +75,10 @@ actor {
   };
 
   public type JobInput = {
+    videoType : VideoType;
     sourceVideo : Storage.ExternalBlob;
     referenceVideo : Storage.ExternalBlob;
     notes : Text;
-    price : Nat;
-  };
-
-  public type SubmitFinalVideoInput = {
-    jobId : Text;
-    finalVideo : Storage.ExternalBlob;
   };
 
   public type RevenueSummary = {
@@ -88,19 +87,12 @@ actor {
     completedJobsCount : Nat;
   };
 
-  // Storage
   let jobs = Map.empty<Text, Job>();
-  let userProfiles = Map.empty<Principal, UserProfile>();
+  let userProfiles = Map.empty<Principal.Principal, UserProfile>();
 
   var nextJobId = 0;
-
-  // Stripe Configuration
   var stripeConfig : ?Stripe.StripeConfiguration = null;
-
-  // Admin Passkey
   var adminPasskey : ?Text = null;
-
-  // Helper Functions
 
   func generateJobId() : Text {
     let id = "job-" # Nat.toText(nextJobId);
@@ -108,11 +100,19 @@ actor {
     id;
   };
 
-  func ensureClient(caller : Principal) {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-      Runtime.trap("Unauthorized: Only authenticated users can perform this action");
+  func getVideoPrice(videoType : VideoType) : Nat {
+    switch (videoType) {
+      case (#small) { 10000 };
+      case (#medium) { 50000 };
+      case (#long) { 200000 };
     };
-    
+  };
+
+  func ensureClient(caller : Principal.Principal) {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only clients can perform this action");
+    };
+
     switch (userProfiles.get(caller)) {
       case (?profile) {
         if (profile.appRole != #client) {
@@ -125,11 +125,11 @@ actor {
     };
   };
 
-  func ensureEditor(caller : Principal) {
+  func ensureEditor(caller : Principal.Principal) {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-      Runtime.trap("Unauthorized: Only authenticated users can perform this action");
+      Runtime.trap("Unauthorized: Only editors can perform this action");
     };
-    
+
     switch (userProfiles.get(caller)) {
       case (?profile) {
         if (profile.appRole != #editor) {
@@ -142,7 +142,7 @@ actor {
     };
   };
 
-  func checkJobAccess(job : Job, caller : Principal) : Bool {
+  func checkJobAccess(job : Job, caller : Principal.Principal) : Bool {
     if (job.clientId == caller) {
       return true;
     };
@@ -162,7 +162,19 @@ actor {
     false;
   };
 
-  // User Profile Functions
+  func findJobBySessionId(sessionId : Text) : ?Job {
+    for ((_, job) in jobs.entries()) {
+      switch (job.stripeSessionId) {
+        case (?sid) {
+          if (sid == sessionId) {
+            return ?job;
+          };
+        };
+        case (null) {};
+      };
+    };
+    null;
+  };
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
@@ -171,7 +183,7 @@ actor {
     userProfiles.get(caller);
   };
 
-  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
+  public query ({ caller }) func getUserProfile(user : Principal.Principal) : async ?UserProfile {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can access profiles");
     };
@@ -188,13 +200,11 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // Job Queries
-
   public query ({ caller }) func getJob(jobId : Text) : async Job {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can access jobs");
     };
-    
+
     switch (jobs.get(jobId)) {
       case (?job) {
         if (not checkJobAccess(job, caller)) {
@@ -239,21 +249,23 @@ actor {
     filteredJobs.toArray();
   };
 
-  // Job Management
-
   public shared ({ caller }) func submitJob(input : JobInput) : async Text {
     ensureClient(caller);
+
+    let price = getVideoPrice(input.videoType);
     let jobId = generateJobId();
+
     let job : Job = {
       jobId;
       clientId = caller;
       assignedEditorId = null;
       status = #pending_payment;
+      videoType = input.videoType;
       sourceVideo = input.sourceVideo;
       referenceVideo = input.referenceVideo;
       finalVideo = null;
       notes = input.notes;
-      price = input.price;
+      price;
       createdAt = Time.now();
       completedAt = null;
       stripeSessionId = null;
@@ -284,7 +296,7 @@ actor {
     };
   };
 
-  public shared ({ caller }) func assignJob(jobId : Text, editorId : Principal) : async () {
+  public shared ({ caller }) func assignJob(jobId : Text, editorId : Principal.Principal) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
       Runtime.trap("Unauthorized: Only admin can assign jobs");
     };
@@ -301,10 +313,10 @@ actor {
     };
   };
 
-  public shared ({ caller }) func submitFinalVideo(input : SubmitFinalVideoInput) : async () {
+  public shared ({ caller }) func submitFinalVideo(jobId : Text, finalVideo : Storage.ExternalBlob) : async () {
     ensureEditor(caller);
 
-    switch (jobs.get(input.jobId)) {
+    switch (jobs.get(jobId)) {
       case (?job) {
         switch (job.assignedEditorId) {
           case (?editor) {
@@ -317,11 +329,11 @@ actor {
 
         let updatedJob : Job = {
           job with
-          finalVideo = ?input.finalVideo;
+          finalVideo = ?finalVideo;
           status = #completed;
           completedAt = ?Time.now();
         };
-        jobs.add(input.jobId, updatedJob);
+        jobs.add(jobId, updatedJob);
       };
       case (null) { Runtime.trap("Job not found") };
     };
@@ -373,8 +385,6 @@ actor {
     };
   };
 
-  // Admin Passkey Functions
-
   public shared ({ caller }) func setAdminPasskey(passkey : Text) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
       Runtime.trap("Unauthorized: Only admin can set passkey");
@@ -382,19 +392,20 @@ actor {
     adminPasskey := ?passkey;
   };
 
-  public query func verifyAdminPasskey(passkey : Text) : async Bool {
-    // Public query - no authorization check needed, but this is a security risk
-    // Anyone can attempt to verify the passkey
+  public query ({ caller }) func verifyAdminPasskey(passkey : Text) : async Bool {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can verify admin passkey");
+    };
     switch (adminPasskey) {
       case (?storedPasskey) { storedPasskey == passkey };
       case (null) { false };
     };
   };
 
-  // Stripe Functions
-
-  public query func isStripeConfigured() : async Bool {
-    // Public query - anyone can check if Stripe is configured
+  public query ({ caller }) func isStripeConfigured() : async Bool {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can check Stripe configuration");
+    };
     stripeConfig != null;
   };
 
@@ -416,13 +427,25 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can check session status");
     };
+
+    // Verify the caller owns a job with this session ID or is an admin
+    switch (findJobBySessionId(sessionId)) {
+      case (?job) {
+        if (not AccessControl.isAdmin(accessControlState, caller) and job.clientId != caller) {
+          Runtime.trap("Unauthorized: Cannot check session status for other users' jobs");
+        };
+      };
+      case (null) {
+        // Even admins cannot check status for sessions not associated with any job
+        Runtime.trap("No job found with this session ID");
+      };
+    };
+
     await Stripe.getSessionStatus(getStripeConfiguration(), sessionId, transform);
   };
 
   public shared ({ caller }) func createCheckoutSession(items : [Stripe.ShoppingItem], successUrl : Text, cancelUrl : Text) : async Text {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-      Runtime.trap("Unauthorized: Only users can create checkout sessions");
-    };
+    ensureClient(caller);
     await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
   };
 

@@ -9,10 +9,11 @@ import {
   CheckCircle2,
   Clock,
   Film,
+  Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { JobStatus } from "../../backend";
+import { JobStatus, VideoType } from "../../backend";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { useGetAllJobs, useGetCallerUserProfile } from "../../hooks/useQueries";
@@ -160,6 +161,17 @@ export function EditorDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
+                        {job.videoType === VideoType.small ? (
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                            <Zap className="w-2.5 h-2.5" />
+                            Small
+                          </span>
+                        ) : (
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/25">
+                            <Clock className="w-2.5 h-2.5" />
+                            Long
+                          </span>
+                        )}
                         <StatusBadge status={job.status} />
                         <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>

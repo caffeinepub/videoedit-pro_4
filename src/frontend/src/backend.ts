@@ -97,13 +97,14 @@ export interface TransformationOutput {
 export type Time = bigint;
 export interface JobInput {
     sourceVideo: ExternalBlob;
+    videoType: VideoType;
     notes: string;
-    price: bigint;
     referenceVideo: ExternalBlob;
 }
 export interface _CaffeineStorageRefillInformation {
     proposed_top_up_amount?: bigint;
 }
+export type Principal = Principal;
 export interface _CaffeineStorageCreateCertificateResult {
     method: string;
     blob_hash: string;
@@ -131,6 +132,7 @@ export interface Job {
     jobId: string;
     sourceVideo: ExternalBlob;
     finalVideo?: ExternalBlob;
+    videoType: VideoType;
     notes: string;
     stripeSessionId?: string;
     price: bigint;
@@ -163,17 +165,13 @@ export interface StripeConfiguration {
     allowedCountries: Array<string>;
     secretKey: string;
 }
-export interface SubmitFinalVideoInput {
-    jobId: string;
-    finalVideo: ExternalBlob;
+export interface UserProfile {
+    appRole: AppUserRole;
+    name: string;
 }
 export interface _CaffeineStorageRefillResult {
     success?: boolean;
     topped_up_amount?: bigint;
-}
-export interface UserProfile {
-    appRole: AppUserRole;
-    name: string;
 }
 export enum AppUserRole {
     client = "client",
@@ -190,6 +188,11 @@ export enum UserRole {
     admin = "admin",
     user = "user",
     guest = "guest"
+}
+export enum VideoType {
+    long_ = "long",
+    small = "small",
+    medium = "medium"
 }
 export interface backendInterface {
     _caffeineStorageBlobIsLive(hash: Uint8Array): Promise<boolean>;
@@ -216,12 +219,12 @@ export interface backendInterface {
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setAdminPasskey(passkey: string): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
-    submitFinalVideo(input: SubmitFinalVideoInput): Promise<void>;
+    submitFinalVideo(jobId: string, finalVideo: ExternalBlob): Promise<void>;
     submitJob(input: JobInput): Promise<string>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     verifyAdminPasskey(passkey: string): Promise<boolean>;
 }
-import type { AppUserRole as _AppUserRole, ExternalBlob as _ExternalBlob, Job as _Job, JobInput as _JobInput, JobStatus as _JobStatus, StripeSessionStatus as _StripeSessionStatus, SubmitFinalVideoInput as _SubmitFinalVideoInput, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
+import type { AppUserRole as _AppUserRole, ExternalBlob as _ExternalBlob, Job as _Job, JobInput as _JobInput, JobStatus as _JobStatus, Principal as _Principal, StripeSessionStatus as _StripeSessionStatus, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, VideoType as _VideoType, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _caffeineStorageBlobIsLive(arg0: Uint8Array): Promise<boolean> {
@@ -410,28 +413,28 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserProfile();
-                return from_candid_opt_n21(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n23(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserProfile();
-            return from_candid_opt_n21(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n23(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserRole(): Promise<UserRole> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n26(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n28(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n26(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n28(this._uploadFile, this._downloadFile, result);
         }
     }
     async getJob(arg0: string): Promise<Job> {
@@ -466,28 +469,28 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getStripeSessionStatus(arg0);
-                return from_candid_StripeSessionStatus_n28(this._uploadFile, this._downloadFile, result);
+                return from_candid_StripeSessionStatus_n30(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getStripeSessionStatus(arg0);
-            return from_candid_StripeSessionStatus_n28(this._uploadFile, this._downloadFile, result);
+            return from_candid_StripeSessionStatus_n30(this._uploadFile, this._downloadFile, result);
         }
     }
     async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getUserProfile(arg0);
-                return from_candid_opt_n21(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n23(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getUserProfile(arg0);
-            return from_candid_opt_n21(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n23(this._uploadFile, this._downloadFile, result);
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -521,14 +524,14 @@ export class Backend implements backendInterface {
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n31(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n33(this._uploadFile, this._downloadFile, arg0));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n31(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n33(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
@@ -560,17 +563,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async submitFinalVideo(arg0: SubmitFinalVideoInput): Promise<void> {
+    async submitFinalVideo(arg0: string, arg1: ExternalBlob): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.submitFinalVideo(await to_candid_SubmitFinalVideoInput_n35(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.submitFinalVideo(arg0, await to_candid_ExternalBlob_n8(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.submitFinalVideo(await to_candid_SubmitFinalVideoInput_n35(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.submitFinalVideo(arg0, await to_candid_ExternalBlob_n8(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
@@ -617,8 +620,8 @@ export class Backend implements backendInterface {
         }
     }
 }
-function from_candid_AppUserRole_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {
-    return from_candid_variant_n25(_uploadFile, _downloadFile, value);
+function from_candid_AppUserRole_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {
+    return from_candid_variant_n27(_uploadFile, _downloadFile, value);
 }
 async function from_candid_ExternalBlob_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExternalBlob): Promise<ExternalBlob> {
     return await _downloadFile(value);
@@ -629,14 +632,17 @@ function from_candid_JobStatus_n14(_uploadFile: (file: ExternalBlob) => Promise<
 async function from_candid_Job_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Job): Promise<Job> {
     return await from_candid_record_n13(_uploadFile, _downloadFile, value);
 }
-function from_candid_StripeSessionStatus_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _StripeSessionStatus): StripeSessionStatus {
+function from_candid_StripeSessionStatus_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _StripeSessionStatus): StripeSessionStatus {
+    return from_candid_variant_n31(_uploadFile, _downloadFile, value);
+}
+function from_candid_UserProfile_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserProfile): UserProfile {
+    return from_candid_record_n25(_uploadFile, _downloadFile, value);
+}
+function from_candid_UserRole_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
     return from_candid_variant_n29(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserProfile_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserProfile): UserProfile {
-    return from_candid_record_n23(_uploadFile, _downloadFile, value);
-}
-function from_candid_UserRole_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n27(_uploadFile, _downloadFile, value);
+function from_candid_VideoType_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _VideoType): VideoType {
+    return from_candid_variant_n21(_uploadFile, _downloadFile, value);
 }
 function from_candid__CaffeineStorageRefillResult_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: __CaffeineStorageRefillResult): _CaffeineStorageRefillResult {
     return from_candid_record_n5(_uploadFile, _downloadFile, value);
@@ -644,17 +650,17 @@ function from_candid__CaffeineStorageRefillResult_n4(_uploadFile: (file: Externa
 function from_candid_opt_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Time]): Time | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [Principal]): Principal | null {
+function from_candid_opt_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Principal]): Principal | null {
     return value.length === 0 ? null : value[0];
 }
 async function from_candid_opt_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_ExternalBlob]): Promise<ExternalBlob | null> {
     return value.length === 0 ? null : await from_candid_ExternalBlob_n18(_uploadFile, _downloadFile, value[0]);
 }
-function from_candid_opt_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
+function from_candid_opt_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
-    return value.length === 0 ? null : from_candid_UserProfile_n22(_uploadFile, _downloadFile, value[0]);
+function from_candid_opt_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+    return value.length === 0 ? null : from_candid_UserProfile_n24(_uploadFile, _downloadFile, value[0]);
 }
 function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [boolean]): boolean | null {
     return value.length === 0 ? null : value[0];
@@ -665,12 +671,13 @@ function from_candid_opt_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Ar
 async function from_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     status: _JobStatus;
     completedAt: [] | [_Time];
-    clientId: Principal;
-    assignedEditorId: [] | [Principal];
+    clientId: _Principal;
+    assignedEditorId: [] | [_Principal];
     createdAt: _Time;
     jobId: string;
     sourceVideo: _ExternalBlob;
     finalVideo: [] | [_ExternalBlob];
+    videoType: _VideoType;
     notes: string;
     stripeSessionId: [] | [string];
     price: bigint;
@@ -684,6 +691,7 @@ async function from_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promi
     jobId: string;
     sourceVideo: ExternalBlob;
     finalVideo?: ExternalBlob;
+    videoType: VideoType;
     notes: string;
     stripeSessionId?: string;
     price: bigint;
@@ -698,13 +706,14 @@ async function from_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promi
         jobId: value.jobId,
         sourceVideo: await from_candid_ExternalBlob_n18(_uploadFile, _downloadFile, value.sourceVideo),
         finalVideo: record_opt_to_undefined(await from_candid_opt_n19(_uploadFile, _downloadFile, value.finalVideo)),
+        videoType: from_candid_VideoType_n20(_uploadFile, _downloadFile, value.videoType),
         notes: value.notes,
-        stripeSessionId: record_opt_to_undefined(from_candid_opt_n20(_uploadFile, _downloadFile, value.stripeSessionId)),
+        stripeSessionId: record_opt_to_undefined(from_candid_opt_n22(_uploadFile, _downloadFile, value.stripeSessionId)),
         price: value.price,
         referenceVideo: await from_candid_ExternalBlob_n18(_uploadFile, _downloadFile, value.referenceVideo)
     };
 }
-function from_candid_record_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     appRole: _AppUserRole;
     name: string;
 }): {
@@ -712,11 +721,11 @@ function from_candid_record_n23(_uploadFile: (file: ExternalBlob) => Promise<Uin
     name: string;
 } {
     return {
-        appRole: from_candid_AppUserRole_n24(_uploadFile, _downloadFile, value.appRole),
+        appRole: from_candid_AppUserRole_n26(_uploadFile, _downloadFile, value.appRole),
         name: value.name
     };
 }
-function from_candid_record_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     userPrincipal: [] | [string];
     response: string;
 }): {
@@ -724,7 +733,7 @@ function from_candid_record_n30(_uploadFile: (file: ExternalBlob) => Promise<Uin
     response: string;
 } {
     return {
-        userPrincipal: record_opt_to_undefined(from_candid_opt_n20(_uploadFile, _downloadFile, value.userPrincipal)),
+        userPrincipal: record_opt_to_undefined(from_candid_opt_n22(_uploadFile, _downloadFile, value.userPrincipal)),
         response: value.response
     };
 }
@@ -753,14 +762,23 @@ function from_candid_variant_n15(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): JobStatus {
     return "assigned" in value ? JobStatus.assigned : "pending_payment" in value ? JobStatus.pending_payment : "pending" in value ? JobStatus.pending : "in_progress" in value ? JobStatus.in_progress : "completed" in value ? JobStatus.completed : value;
 }
-function from_candid_variant_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    long: null;
+} | {
+    small: null;
+} | {
+    medium: null;
+}): VideoType {
+    return "long" in value ? VideoType.long : "small" in value ? VideoType.small : "medium" in value ? VideoType.medium : value;
+}
+function from_candid_variant_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     client: null;
 } | {
     editor: null;
 }): AppUserRole {
     return "client" in value ? AppUserRole.client : "editor" in value ? AppUserRole.editor : value;
 }
-function from_candid_variant_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n29(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;
@@ -769,7 +787,7 @@ function from_candid_variant_n27(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_variant_n29(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     completed: {
         userPrincipal: [] | [string];
         response: string;
@@ -792,7 +810,7 @@ function from_candid_variant_n29(_uploadFile: (file: ExternalBlob) => Promise<Ui
 } {
     return "completed" in value ? {
         __kind__: "completed",
-        completed: from_candid_record_n30(_uploadFile, _downloadFile, value.completed)
+        completed: from_candid_record_n32(_uploadFile, _downloadFile, value.completed)
     } : "failed" in value ? {
         __kind__: "failed",
         failed: value.failed
@@ -801,8 +819,8 @@ function from_candid_variant_n29(_uploadFile: (file: ExternalBlob) => Promise<Ui
 async function from_candid_vec_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Job>): Promise<Array<Job>> {
     return await Promise.all(value.map(async (x)=>await from_candid_Job_n12(_uploadFile, _downloadFile, x)));
 }
-function to_candid_AppUserRole_n33(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AppUserRole): _AppUserRole {
-    return to_candid_variant_n34(_uploadFile, _downloadFile, value);
+function to_candid_AppUserRole_n35(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AppUserRole): _AppUserRole {
+    return to_candid_variant_n36(_uploadFile, _downloadFile, value);
 }
 async function to_candid_ExternalBlob_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ExternalBlob): Promise<_ExternalBlob> {
     return await _uploadFile(value);
@@ -810,14 +828,14 @@ async function to_candid_ExternalBlob_n8(_uploadFile: (file: ExternalBlob) => Pr
 async function to_candid_JobInput_n37(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: JobInput): Promise<_JobInput> {
     return await to_candid_record_n38(_uploadFile, _downloadFile, value);
 }
-async function to_candid_SubmitFinalVideoInput_n35(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SubmitFinalVideoInput): Promise<_SubmitFinalVideoInput> {
-    return await to_candid_record_n36(_uploadFile, _downloadFile, value);
-}
-function to_candid_UserProfile_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
-    return to_candid_record_n32(_uploadFile, _downloadFile, value);
+function to_candid_UserProfile_n33(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
+    return to_candid_record_n34(_uploadFile, _downloadFile, value);
 }
 function to_candid_UserRole_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n10(_uploadFile, _downloadFile, value);
+}
+function to_candid_VideoType_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VideoType): _VideoType {
+    return to_candid_variant_n40(_uploadFile, _downloadFile, value);
 }
 function to_candid__CaffeineStorageRefillInformation_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CaffeineStorageRefillInformation): __CaffeineStorageRefillInformation {
     return to_candid_record_n3(_uploadFile, _downloadFile, value);
@@ -834,7 +852,7 @@ function to_candid_record_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8A
         proposed_top_up_amount: value.proposed_top_up_amount ? candid_some(value.proposed_top_up_amount) : candid_none()
     };
 }
-function to_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     appRole: AppUserRole;
     name: string;
 }): {
@@ -842,37 +860,25 @@ function to_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     name: string;
 } {
     return {
-        appRole: to_candid_AppUserRole_n33(_uploadFile, _downloadFile, value.appRole),
+        appRole: to_candid_AppUserRole_n35(_uploadFile, _downloadFile, value.appRole),
         name: value.name
-    };
-}
-async function to_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    jobId: string;
-    finalVideo: ExternalBlob;
-}): Promise<{
-    jobId: string;
-    finalVideo: _ExternalBlob;
-}> {
-    return {
-        jobId: value.jobId,
-        finalVideo: await to_candid_ExternalBlob_n8(_uploadFile, _downloadFile, value.finalVideo)
     };
 }
 async function to_candid_record_n38(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     sourceVideo: ExternalBlob;
+    videoType: VideoType;
     notes: string;
-    price: bigint;
     referenceVideo: ExternalBlob;
 }): Promise<{
     sourceVideo: _ExternalBlob;
+    videoType: _VideoType;
     notes: string;
-    price: bigint;
     referenceVideo: _ExternalBlob;
 }> {
     return {
         sourceVideo: await to_candid_ExternalBlob_n8(_uploadFile, _downloadFile, value.sourceVideo),
+        videoType: to_candid_VideoType_n39(_uploadFile, _downloadFile, value.videoType),
         notes: value.notes,
-        price: value.price,
         referenceVideo: await to_candid_ExternalBlob_n8(_uploadFile, _downloadFile, value.referenceVideo)
     };
 }
@@ -891,7 +897,7 @@ function to_candid_variant_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint
         guest: null
     } : value;
 }
-function to_candid_variant_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AppUserRole): {
+function to_candid_variant_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AppUserRole): {
     client: null;
 } | {
     editor: null;
@@ -900,6 +906,21 @@ function to_candid_variant_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint
         client: null
     } : value == AppUserRole.editor ? {
         editor: null
+    } : value;
+}
+function to_candid_variant_n40(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VideoType): {
+    long: null;
+} | {
+    small: null;
+} | {
+    medium: null;
+} {
+    return value == VideoType.long ? {
+        long_: null
+    } : value == VideoType.small ? {
+        small: null
+    } : value == VideoType.medium ? {
+        medium: null
     } : value;
 }
 export interface CreateActorOptions {

@@ -22,10 +22,11 @@ export interface TransformationOutput {
 export type Time = bigint;
 export interface JobInput {
     sourceVideo: ExternalBlob;
+    videoType: VideoType;
     notes: string;
-    price: bigint;
     referenceVideo: ExternalBlob;
 }
+export type Principal = Principal;
 export interface http_header {
     value: string;
     name: string;
@@ -49,6 +50,7 @@ export interface Job {
     jobId: string;
     sourceVideo: ExternalBlob;
     finalVideo?: ExternalBlob;
+    videoType: VideoType;
     notes: string;
     stripeSessionId?: string;
     price: bigint;
@@ -81,10 +83,6 @@ export interface StripeConfiguration {
     allowedCountries: Array<string>;
     secretKey: string;
 }
-export interface SubmitFinalVideoInput {
-    jobId: string;
-    finalVideo: ExternalBlob;
-}
 export interface UserProfile {
     appRole: AppUserRole;
     name: string;
@@ -105,6 +103,11 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+export enum VideoType {
+    long_ = "long",
+    small = "small",
+    medium = "medium"
+}
 export interface backendInterface {
     adminSubmitFinalVideo(jobId: string, finalVideo: ExternalBlob): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -123,7 +126,7 @@ export interface backendInterface {
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setAdminPasskey(passkey: string): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
-    submitFinalVideo(input: SubmitFinalVideoInput): Promise<void>;
+    submitFinalVideo(jobId: string, finalVideo: ExternalBlob): Promise<void>;
     submitJob(input: JobInput): Promise<string>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     verifyAdminPasskey(passkey: string): Promise<boolean>;

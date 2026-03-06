@@ -8,9 +8,10 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { AppUserRole } from "./backend";
+import { EmailAuthModal } from "./components/EmailAuthModal";
 import { Footer } from "./components/Footer";
 import { Navbar } from "./components/Navbar";
-import { ProfileSetupModal } from "./components/ProfileSetupModal";
+import { useEmailAuth } from "./hooks/useEmailAuth";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useGetCallerUserProfile, useIsCallerAdmin } from "./hooks/useQueries";
 import { AccessDenied } from "./pages/AccessDenied";
@@ -29,21 +30,6 @@ import { EditorJobDetail } from "./pages/editor/EditorJobDetail";
 // ── Root layout ──────────────────────────────────────────────────────────────
 
 function RootLayout() {
-  const { identity, isInitializing } = useInternetIdentity();
-  const isAuthenticated = !!identity;
-  const {
-    data: profile,
-    isLoading: profileLoading,
-    isFetched,
-  } = useGetCallerUserProfile();
-
-  const showProfileSetup =
-    isAuthenticated &&
-    !profileLoading &&
-    isFetched &&
-    profile === null &&
-    !isInitializing;
-
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -51,7 +37,6 @@ function RootLayout() {
         <Outlet />
       </main>
       <Footer />
-      <ProfileSetupModal open={showProfileSetup} />
       <Toaster
         position="bottom-right"
         toastOptions={{
@@ -75,6 +60,7 @@ function RootLayout() {
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { identity, isInitializing } = useInternetIdentity();
   const { isLoading } = useGetCallerUserProfile();
+  const { isRegistered, isEmailLoggedIn } = useEmailAuth();
 
   if (isInitializing || isLoading) {
     return (
@@ -89,6 +75,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!identity) {
     return <AccessDenied />;
+  }
+
+  // Email auth gate: show modal if not yet registered or not logged in this session
+  if (!isRegistered || !isEmailLoggedIn) {
+    return <EmailAuthModal open={true} />;
   }
 
   return <>{children}</>;

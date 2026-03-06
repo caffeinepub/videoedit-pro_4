@@ -1,12 +1,18 @@
 import Map "mo:core/Map";
+import Time "mo:core/Time";
 import Text "mo:core/Text";
-import Principal "mo:core/Principal";
 import Storage "blob-storage/Storage";
 import Stripe "stripe/stripe";
-import Time "mo:core/Time";
+import AccessControl "authorization/access-control";
+import Principal "mo:core/Principal";
 
 module {
-  public type JobStatus = {
+  type OldVideoType = {
+    #small;
+    #long;
+  };
+
+  type OldJobStatus = {
     #pending_payment;
     #pending;
     #assigned;
@@ -14,21 +20,22 @@ module {
     #completed;
   };
 
-  public type AppUserRole = {
+  type OldAppUserRole = {
     #client;
     #editor;
   };
 
-  public type UserProfile = {
+  type OldUserProfile = {
     name : Text;
-    appRole : AppUserRole;
+    appRole : OldAppUserRole;
   };
 
-  public type Job = {
+  type OldJob = {
     jobId : Text;
-    clientId : Principal;
-    assignedEditorId : ?Principal;
-    status : JobStatus;
+    clientId : Principal.Principal;
+    assignedEditorId : ?Principal.Principal;
+    status : OldJobStatus;
+    videoType : OldVideoType;
     sourceVideo : Storage.ExternalBlob;
     referenceVideo : Storage.ExternalBlob;
     finalVideo : ?Storage.ExternalBlob;
@@ -39,26 +46,60 @@ module {
     stripeSessionId : ?Text;
   };
 
-  public type OldActor = {
-    jobs : Map.Map<Text, Job>;
-    userProfiles : Map.Map<Principal, UserProfile>;
-    nextJobId : Nat;
-    stripeConfig : ?Stripe.StripeConfiguration;
-  };
-
-  public type NewActor = {
-    jobs : Map.Map<Text, Job>;
-    userProfiles : Map.Map<Principal, UserProfile>;
+  type OldActor = {
+    accessControlState : AccessControl.AccessControlState;
+    jobs : Map.Map<Text, OldJob>;
+    userProfiles : Map.Map<Principal.Principal, OldUserProfile>;
     nextJobId : Nat;
     stripeConfig : ?Stripe.StripeConfiguration;
     adminPasskey : ?Text;
   };
 
-  // Migration function called by the main actor via the with-clause
+  type NewActor = {
+    accessControlState : AccessControl.AccessControlState;
+    jobs : Map.Map<Text, NewJob>;
+    userProfiles : Map.Map<Principal.Principal, OldUserProfile>;
+    nextJobId : Nat;
+    stripeConfig : ?Stripe.StripeConfiguration;
+    adminPasskey : ?Text;
+  };
+
+  type NewVideoType = {
+    #small;
+    #medium;
+    #long;
+  };
+
+  type NewJob = {
+    jobId : Text;
+    clientId : Principal.Principal;
+    assignedEditorId : ?Principal.Principal;
+    status : OldJobStatus;
+    videoType : NewVideoType;
+    sourceVideo : Storage.ExternalBlob;
+    referenceVideo : Storage.ExternalBlob;
+    finalVideo : ?Storage.ExternalBlob;
+    notes : Text;
+    price : Nat;
+    createdAt : Time.Time;
+    completedAt : ?Time.Time;
+    stripeSessionId : ?Text;
+  };
+
   public func run(old : OldActor) : NewActor {
-    {
-      old with
-      adminPasskey = null
-    };
+    let newJobs = old.jobs.map<Text, OldJob, NewJob>(
+      func(_jobId, oldJob) {
+        let newVideoType = switch (oldJob.videoType) {
+          case (#small) { #small };
+          case (#long) { #long };
+        };
+        {
+          oldJob with
+          videoType = newVideoType;
+        };
+      }
+    );
+
+    { old with jobs = newJobs };
   };
 };

@@ -22,6 +22,7 @@ export interface Job {
   'jobId' : string,
   'sourceVideo' : ExternalBlob,
   'finalVideo' : [] | [ExternalBlob],
+  'videoType' : VideoType,
   'notes' : string,
   'stripeSessionId' : [] | [string],
   'price' : bigint,
@@ -29,8 +30,8 @@ export interface Job {
 }
 export interface JobInput {
   'sourceVideo' : ExternalBlob,
+  'videoType' : VideoType,
   'notes' : string,
-  'price' : bigint,
   'referenceVideo' : ExternalBlob,
 }
 export type JobStatus = { 'assigned' : null } |
@@ -38,6 +39,7 @@ export type JobStatus = { 'assigned' : null } |
   { 'pending' : null } |
   { 'in_progress' : null } |
   { 'completed' : null };
+export type Principal = Principal;
 export interface RevenueSummary {
   'totalRevenue' : bigint,
   'completedJobsCount' : bigint,
@@ -58,10 +60,6 @@ export type StripeSessionStatus = {
     'completed' : { 'userPrincipal' : [] | [string], 'response' : string }
   } |
   { 'failed' : { 'error' : string } };
-export interface SubmitFinalVideoInput {
-  'jobId' : string,
-  'finalVideo' : ExternalBlob,
-}
 export type Time = bigint;
 export interface TransformationInput {
   'context' : Uint8Array,
@@ -76,6 +74,9 @@ export interface UserProfile { 'appRole' : AppUserRole, 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export type VideoType = { 'long' : null } |
+  { 'small' : null } |
+  { 'medium' : null };
 export interface _CaffeineStorageCreateCertificateResult {
   'method' : string,
   'blob_hash' : string,
@@ -130,7 +131,7 @@ export interface _SERVICE {
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setAdminPasskey' : ActorMethod<[string], undefined>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
-  'submitFinalVideo' : ActorMethod<[SubmitFinalVideoInput], undefined>,
+  'submitFinalVideo' : ActorMethod<[string, ExternalBlob], undefined>,
   'submitJob' : ActorMethod<[JobInput], string>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'verifyAdminPasskey' : ActorMethod<[string], boolean>,

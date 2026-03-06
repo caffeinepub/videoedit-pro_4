@@ -11,9 +11,10 @@ import {
   Clock,
   Film,
   Plus,
+  Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { JobStatus } from "../../backend";
+import { JobStatus, VideoType } from "../../backend";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { useGetAllJobs, useGetCallerUserProfile } from "../../hooks/useQueries";
@@ -81,9 +82,7 @@ export function ClientDashboard() {
               Welcome back
               {profile?.name ? `, ${profile.name}` : ""}
             </h1>
-            <p className="text-muted-foreground">
-              Manage your video editing jobs
-            </p>
+            <p className="text-muted-foreground">Manage your video uploads</p>
           </div>
           <Button
             data-ocid="job.submit_button"
@@ -92,7 +91,7 @@ export function ClientDashboard() {
           >
             <Link to="/client/submit">
               <Plus className="w-4 h-4" />
-              New Job
+              New Upload
             </Link>
           </Button>
         </div>
@@ -101,7 +100,7 @@ export function ClientDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
             {
-              label: "Total Jobs",
+              label: "Total Videos",
               value: stats.total,
               icon: Briefcase,
               color: "text-primary",
@@ -146,7 +145,7 @@ export function ClientDashboard() {
           <CardHeader className="pb-4">
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <Film className="w-5 h-5 text-primary" />
-              Your Jobs
+              My Videos
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -165,10 +164,10 @@ export function ClientDashboard() {
                   <Film className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <h3 className="font-display text-lg font-bold mb-2">
-                  No jobs yet
+                  No videos yet
                 </h3>
                 <p className="text-muted-foreground text-sm mb-6">
-                  Submit your first video editing job to get started.
+                  Submit your first video to get started.
                 </p>
                 <Button
                   asChild
@@ -176,7 +175,7 @@ export function ClientDashboard() {
                 >
                   <Link to="/client/submit">
                     <Plus className="w-4 h-4" />
-                    Submit New Job
+                    Submit New Video
                   </Link>
                 </Button>
               </div>
@@ -210,6 +209,22 @@ export function ClientDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
+                        {job.videoType === VideoType.small ? (
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                            <Zap className="w-2.5 h-2.5" />
+                            Small
+                          </span>
+                        ) : job.videoType === VideoType.medium ? (
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                            <Film className="w-2.5 h-2.5" />
+                            Medium
+                          </span>
+                        ) : (
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/25">
+                            <Clock className="w-2.5 h-2.5" />
+                            Long
+                          </span>
+                        )}
                         <StatusBadge status={job.status} />
                         <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>

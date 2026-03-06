@@ -5,10 +5,12 @@ import {
   CheckCircle,
   Clock,
   Download,
+  Film,
   Scissors,
   Shield,
   Star,
   Upload,
+  Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -112,7 +114,7 @@ export function LandingPage() {
               Upload your raw footage with a reference video, and our supervised
               team of professional editors will transform it into exactly what
               you imagined. Starting at just{" "}
-              <span className="text-primary font-semibold">₹2,499</span>.
+              <span className="text-primary font-semibold">₹100</span>.
             </motion.p>
 
             <motion.div
@@ -241,61 +243,221 @@ export function LandingPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="max-w-2xl mx-auto text-center"
+            className="text-center mb-12"
           >
             <p className="text-xs font-mono text-primary tracking-widest mb-3">
               PRICING
             </p>
-            <h2 className="font-display text-4xl md:text-5xl font-black tracking-tight mb-6">
+            <h2 className="font-display text-4xl md:text-5xl font-black tracking-tight mb-4">
               Simple, flat-rate pricing
             </h2>
-            <p className="text-muted-foreground mb-12">
+            <p className="text-muted-foreground max-w-lg mx-auto">
               No hidden fees. Pay once, get your video edited by a professional.
             </p>
-
-            <div className="card-glass rounded-2xl p-10 amber-glow relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent" />
-
-              <div className="flex items-end justify-center gap-2 mb-4">
-                <span className="text-6xl font-display font-black text-gradient-amber">
-                  ₹2,499
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground mb-8 font-mono">
-                PER EDITING JOB
-              </p>
-
-              <ul className="space-y-3 mb-10 text-left">
-                {[
-                  "Upload source + reference video",
-                  "Assigned to vetted professional editor",
-                  "Admin-supervised quality control",
-                  "Delivered to your account",
-                  "Secure Stripe payment",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-sm">
-                    <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                    <span className="text-muted-foreground">{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {isAuthenticated ? (
-                <Button
-                  data-ocid="hero.primary_button"
-                  asChild
-                  size="lg"
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-bold"
-                >
-                  <Link to="/client/submit">Submit Your Video</Link>
-                </Button>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Sign in with Internet Identity to get started →
-                </p>
-              )}
-            </div>
           </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {/* Small Video Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <div className="card-glass rounded-2xl p-8 h-full relative overflow-hidden border border-blue-500/20 hover:border-blue-500/40 transition-colors duration-300 flex flex-col">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-60" />
+
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-lg">
+                      Small Video
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Short clips up to ~5 minutes
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-1 mb-6">
+                  <span className="font-display text-5xl font-black text-blue-300">
+                    ₹100
+                  </span>
+                  <span className="text-sm text-muted-foreground mb-1.5 font-mono">
+                    /video
+                  </span>
+                </div>
+
+                <ul className="space-y-2.5 mb-8 flex-1">
+                  {[
+                    "Upload source + reference video",
+                    "Professional editor assigned",
+                    "Admin-supervised quality",
+                    "Delivered to your account",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-center gap-2.5 text-sm"
+                    >
+                      <CheckCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                      <span className="text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {isAuthenticated ? (
+                  <Button
+                    data-ocid="pricing.small_video.button"
+                    asChild
+                    size="lg"
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-display font-bold"
+                  >
+                    <Link to="/client/submit">Submit Small Video</Link>
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Sign in to get started →
+                  </p>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Medium Video Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <div className="card-glass rounded-2xl p-8 h-full relative overflow-hidden border border-amber-500/20 hover:border-amber-500/40 transition-colors duration-300 flex flex-col">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-60" />
+
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                    <Film className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-lg">
+                      Medium Video
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      5–20 minute videos
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-1 mb-6">
+                  <span className="font-display text-5xl font-black text-amber-300">
+                    ₹500
+                  </span>
+                  <span className="text-sm text-muted-foreground mb-1.5 font-mono">
+                    /video
+                  </span>
+                </div>
+
+                <ul className="space-y-2.5 mb-8 flex-1">
+                  {[
+                    "Upload source + reference video",
+                    "Professional editor assigned",
+                    "Admin-supervised quality",
+                    "Delivered to your account",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-center gap-2.5 text-sm"
+                    >
+                      <CheckCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <span className="text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {isAuthenticated ? (
+                  <Button
+                    data-ocid="pricing.medium_video.button"
+                    asChild
+                    size="lg"
+                    className="w-full bg-amber-600 hover:bg-amber-500 text-white font-display font-bold"
+                  >
+                    <Link to="/client/submit">Submit Medium Video</Link>
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Sign in to get started →
+                  </p>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Long Video Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <div className="card-glass rounded-2xl p-8 h-full relative overflow-hidden border border-purple-500/20 hover:border-purple-500/40 transition-colors duration-300 flex flex-col">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-60" />
+
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-lg">
+                      Long Video
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Full-length videos & feature edits
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-1 mb-6">
+                  <span className="font-display text-5xl font-black text-purple-300">
+                    ₹2,000
+                  </span>
+                  <span className="text-sm text-muted-foreground mb-1.5 font-mono">
+                    /video
+                  </span>
+                </div>
+
+                <ul className="space-y-2.5 mb-8 flex-1">
+                  {[
+                    "Upload source + reference video",
+                    "Senior editor assigned",
+                    "Admin-supervised quality",
+                    "Delivered to your account",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-center gap-2.5 text-sm"
+                    >
+                      <CheckCircle className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                      <span className="text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {isAuthenticated ? (
+                  <Button
+                    data-ocid="pricing.long_video.button"
+                    asChild
+                    size="lg"
+                    className="w-full bg-purple-700 hover:bg-purple-600 text-white font-display font-bold"
+                  >
+                    <Link to="/client/submit">Submit Long Video</Link>
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Sign in to get started →
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
@@ -313,8 +475,7 @@ export function LandingPage() {
               <span className="text-gradient-amber">your footage?</span>
             </h2>
             <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-              Join VideoEdit Pro today. Sign in and submit your first editing
-              job in minutes.
+              Join videru today. Sign in and submit your first video in minutes.
             </p>
             <Button
               data-ocid="hero.primary_button"

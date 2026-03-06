@@ -9,12 +9,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Fingerprint, Loader2, Lock, Shield } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Fingerprint,
+  KeyRound,
+  Loader2,
+  Lock,
+  Shield,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
-import { useVerifyAdminPasskey } from "../../hooks/useQueries";
+import {
+  useIsCallerAdmin,
+  useVerifyAdminPasskey,
+} from "../../hooks/useQueries";
 import {
   authenticateFingerprint,
   hasFingerprintRegistered,
@@ -22,10 +33,12 @@ import {
 } from "../../hooks/useWebAuthn";
 
 export function AdminLoginPage() {
-  const [passkey, setPasskey] = useState("");
-  const [showPasskey, setShowPasskey] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fingerprintLoading, setFingerprintLoading] = useState(false);
+  const [bypassLoading, setBypassLoading] = useState(false);
 
   const { identity, login, loginStatus, isInitializing } =
     useInternetIdentity();
@@ -33,6 +46,7 @@ export function AdminLoginPage() {
   const isLoggingIn = loginStatus === "logging-in";
 
   const verifyPasskey = useVerifyAdminPasskey();
+  const { data: isCallerAdmin } = useIsCallerAdmin();
   const navigate = useNavigate();
 
   const fingerprintAvailable =
@@ -42,6 +56,24 @@ export function AdminLoginPage() {
     sessionStorage.setItem("adminAuthenticated", "true");
     toast.success("Welcome to the Admin Portal");
     navigate({ to: "/admin" });
+  };
+
+  const handleForgotPasskey = async () => {
+    setBypassLoading(true);
+    try {
+      if (isCallerAdmin === true) {
+        sessionStorage.setItem("adminAuthenticated", "true");
+        toast.success(
+          "You're in — please set a new passkey in the Security tab.",
+          { duration: 6000 },
+        );
+        navigate({ to: "/admin" });
+      } else {
+        setError("Only the app admin can bypass the passkey.");
+      }
+    } finally {
+      setBypassLoading(false);
+    }
   };
 
   const handleFingerprintLogin = async () => {
@@ -70,15 +102,16 @@ export function AdminLoginPage() {
 
   const handlePasskeySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passkey.trim()) return;
+    if (!email.trim() || !password.trim()) return;
 
     setError(null);
     try {
-      const isValid = await verifyPasskey.mutateAsync(passkey.trim());
+      const combined = `${email.trim()}:${password.trim()}`;
+      const isValid = await verifyPasskey.mutateAsync(combined);
       if (isValid) {
         doNavigate();
       } else {
-        setError("Incorrect passkey. Try again.");
+        setError("Incorrect email or password. Try again.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed.");
@@ -130,8 +163,8 @@ export function AdminLoginPage() {
               {!isAuthenticated
                 ? "You must sign in first, then verify your identity."
                 : fingerprintAvailable
-                  ? "Use your fingerprint or enter your passkey."
-                  : "Enter your admin passkey to continue."}
+                  ? "Use your fingerprint or enter your email & password."
+                  : "Enter your admin email & password to continue."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -201,47 +234,77 @@ export function AdminLoginPage() {
                     <div className="flex items-center gap-3">
                       <div className="h-px flex-1 bg-border" />
                       <span className="text-xs text-muted-foreground">
-                        or use passkey
+                        or use email & password
                       </span>
                       <div className="h-px flex-1 bg-border" />
                     </div>
                   </div>
                 )}
 
-                {/* Passkey form */}
+                {/* Admin Email & Password form */}
                 <form onSubmit={handlePasskeySubmit} className="space-y-4">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" />
+                    Admin Email &amp; Password
+                  </p>
+
+                  {/* Email field */}
                   <div className="space-y-2">
                     <Label
-                      htmlFor="passkey"
-                      className="text-sm font-medium flex items-center gap-1.5"
+                      htmlFor="admin-email"
+                      className="text-sm font-medium"
                     >
-                      <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-                      Admin Passkey
+                      Email
+                    </Label>
+                    <Input
+                      id="admin-email"
+                      data-ocid="admin_login.email.input"
+                      type="email"
+                      placeholder="Enter your Gmail address…"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (error) setError(null);
+                      }}
+                      className="bg-input border-border focus:border-primary"
+                      autoFocus={!fingerprintAvailable}
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+
+                  {/* Password field */}
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="admin-password"
+                      className="text-sm font-medium"
+                    >
+                      Password
                     </Label>
                     <div className="relative">
                       <Input
-                        id="passkey"
-                        data-ocid="admin_login.passkey.input"
-                        type={showPasskey ? "text" : "password"}
-                        placeholder="Enter passkey…"
-                        value={passkey}
+                        id="admin-password"
+                        data-ocid="admin_login.password.input"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password…"
+                        value={password}
                         onChange={(e) => {
-                          setPasskey(e.target.value);
+                          setPassword(e.target.value);
                           if (error) setError(null);
                         }}
                         className="pr-10 bg-input border-border focus:border-primary"
-                        autoFocus={!fingerprintAvailable}
                         autoComplete="current-password"
+                        required
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPasskey((prev) => !prev)}
+                        onClick={() => setShowPassword((prev) => !prev)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                         aria-label={
-                          showPasskey ? "Hide passkey" : "Show passkey"
+                          showPassword ? "Hide password" : "Show password"
                         }
                       >
-                        {showPasskey ? (
+                        {showPassword ? (
                           <EyeOff className="w-4 h-4" />
                         ) : (
                           <Eye className="w-4 h-4" />
@@ -267,7 +330,11 @@ export function AdminLoginPage() {
                     data-ocid="admin_login.submit_button"
                     type="submit"
                     className="w-full bg-primary/80 text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
-                    disabled={verifyPasskey.isPending || !passkey.trim()}
+                    disabled={
+                      verifyPasskey.isPending ||
+                      !email.trim() ||
+                      !password.trim()
+                    }
                   >
                     {verifyPasskey.isPending ? (
                       <>
@@ -277,11 +344,46 @@ export function AdminLoginPage() {
                     ) : (
                       <>
                         <Shield className="w-4 h-4" />
-                        Continue with Passkey
+                        Sign In
                       </>
                     )}
                   </Button>
                 </form>
+
+                {/* Forgot credentials bypass */}
+                <div className="pt-2">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-xs text-muted-foreground">
+                      forgot credentials?
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  <Button
+                    data-ocid="admin_login.forgot_passkey.button"
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-2 border-border text-muted-foreground hover:text-foreground hover:border-primary/40 font-display text-sm"
+                    onClick={handleForgotPasskey}
+                    disabled={bypassLoading || isCallerAdmin === undefined}
+                  >
+                    {bypassLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Verifying identity…
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-4 h-4" />
+                        Reset credentials via Internet Identity
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    If you are the app admin, this will let you set new
+                    credentials in the Security tab.
+                  </p>
+                </div>
               </motion.div>
             )}
           </CardContent>

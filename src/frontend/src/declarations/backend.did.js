@@ -25,6 +25,7 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const Principal = IDL.Principal;
 export const ShoppingItem = IDL.Record({
   'productName' : IDL.Text,
   'currency' : IDL.Text,
@@ -40,15 +41,21 @@ export const JobStatus = IDL.Variant({
   'completed' : IDL.Null,
 });
 export const Time = IDL.Int;
+export const VideoType = IDL.Variant({
+  'long' : IDL.Null,
+  'small' : IDL.Null,
+  'medium' : IDL.Null,
+});
 export const Job = IDL.Record({
   'status' : JobStatus,
   'completedAt' : IDL.Opt(Time),
-  'clientId' : IDL.Principal,
-  'assignedEditorId' : IDL.Opt(IDL.Principal),
+  'clientId' : Principal,
+  'assignedEditorId' : IDL.Opt(Principal),
   'createdAt' : Time,
   'jobId' : IDL.Text,
   'sourceVideo' : ExternalBlob,
   'finalVideo' : IDL.Opt(ExternalBlob),
+  'videoType' : VideoType,
   'notes' : IDL.Text,
   'stripeSessionId' : IDL.Opt(IDL.Text),
   'price' : IDL.Nat,
@@ -78,14 +85,10 @@ export const StripeConfiguration = IDL.Record({
   'allowedCountries' : IDL.Vec(IDL.Text),
   'secretKey' : IDL.Text,
 });
-export const SubmitFinalVideoInput = IDL.Record({
-  'jobId' : IDL.Text,
-  'finalVideo' : ExternalBlob,
-});
 export const JobInput = IDL.Record({
   'sourceVideo' : ExternalBlob,
+  'videoType' : VideoType,
   'notes' : IDL.Text,
-  'price' : IDL.Nat,
   'referenceVideo' : ExternalBlob,
 });
 export const http_header = IDL.Record({
@@ -137,7 +140,7 @@ export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'adminSubmitFinalVideo' : IDL.Func([IDL.Text, ExternalBlob], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'assignJob' : IDL.Func([IDL.Text, IDL.Principal], [], []),
+  'assignJob' : IDL.Func([IDL.Text, Principal], [], []),
   'confirmPayment' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'createCheckoutSession' : IDL.Func(
       [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
@@ -150,17 +153,13 @@ export const idlService = IDL.Service({
   'getJob' : IDL.Func([IDL.Text], [Job], ['query']),
   'getRevenueSummary' : IDL.Func([], [RevenueSummary], ['query']),
   'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
-  'getUserProfile' : IDL.Func(
-      [IDL.Principal],
-      [IDL.Opt(UserProfile)],
-      ['query'],
-    ),
+  'getUserProfile' : IDL.Func([Principal], [IDL.Opt(UserProfile)], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setAdminPasskey' : IDL.Func([IDL.Text], [], []),
   'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
-  'submitFinalVideo' : IDL.Func([SubmitFinalVideoInput], [], []),
+  'submitFinalVideo' : IDL.Func([IDL.Text, ExternalBlob], [], []),
   'submitJob' : IDL.Func([JobInput], [IDL.Text], []),
   'transform' : IDL.Func(
       [TransformationInput],
@@ -190,6 +189,7 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const Principal = IDL.Principal;
   const ShoppingItem = IDL.Record({
     'productName' : IDL.Text,
     'currency' : IDL.Text,
@@ -205,15 +205,21 @@ export const idlFactory = ({ IDL }) => {
     'completed' : IDL.Null,
   });
   const Time = IDL.Int;
+  const VideoType = IDL.Variant({
+    'long' : IDL.Null,
+    'small' : IDL.Null,
+    'medium' : IDL.Null,
+  });
   const Job = IDL.Record({
     'status' : JobStatus,
     'completedAt' : IDL.Opt(Time),
-    'clientId' : IDL.Principal,
-    'assignedEditorId' : IDL.Opt(IDL.Principal),
+    'clientId' : Principal,
+    'assignedEditorId' : IDL.Opt(Principal),
     'createdAt' : Time,
     'jobId' : IDL.Text,
     'sourceVideo' : ExternalBlob,
     'finalVideo' : IDL.Opt(ExternalBlob),
+    'videoType' : VideoType,
     'notes' : IDL.Text,
     'stripeSessionId' : IDL.Opt(IDL.Text),
     'price' : IDL.Nat,
@@ -240,14 +246,10 @@ export const idlFactory = ({ IDL }) => {
     'allowedCountries' : IDL.Vec(IDL.Text),
     'secretKey' : IDL.Text,
   });
-  const SubmitFinalVideoInput = IDL.Record({
-    'jobId' : IDL.Text,
-    'finalVideo' : ExternalBlob,
-  });
   const JobInput = IDL.Record({
     'sourceVideo' : ExternalBlob,
+    'videoType' : VideoType,
     'notes' : IDL.Text,
-    'price' : IDL.Nat,
     'referenceVideo' : ExternalBlob,
   });
   const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
@@ -296,7 +298,7 @@ export const idlFactory = ({ IDL }) => {
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'adminSubmitFinalVideo' : IDL.Func([IDL.Text, ExternalBlob], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'assignJob' : IDL.Func([IDL.Text, IDL.Principal], [], []),
+    'assignJob' : IDL.Func([IDL.Text, Principal], [], []),
     'confirmPayment' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'createCheckoutSession' : IDL.Func(
         [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
@@ -309,17 +311,13 @@ export const idlFactory = ({ IDL }) => {
     'getJob' : IDL.Func([IDL.Text], [Job], ['query']),
     'getRevenueSummary' : IDL.Func([], [RevenueSummary], ['query']),
     'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
-    'getUserProfile' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Opt(UserProfile)],
-        ['query'],
-      ),
+    'getUserProfile' : IDL.Func([Principal], [IDL.Opt(UserProfile)], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setAdminPasskey' : IDL.Func([IDL.Text], [], []),
     'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
-    'submitFinalVideo' : IDL.Func([SubmitFinalVideoInput], [], []),
+    'submitFinalVideo' : IDL.Func([IDL.Text, ExternalBlob], [], []),
     'submitJob' : IDL.Func([JobInput], [IDL.Text], []),
     'transform' : IDL.Func(
         [TransformationInput],

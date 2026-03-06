@@ -13,11 +13,12 @@ import {
   Film,
   IndianRupee,
   Loader2,
+  Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { JobStatus } from "../../backend";
+import { JobStatus, VideoType } from "../../backend";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useConfirmPayment, useGetJob } from "../../hooks/useQueries";
 
@@ -117,9 +118,22 @@ export function JobDetailPage({ jobId }: JobDetailPageProps) {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
           <div>
-            <h1 className="font-display text-2xl font-black tracking-tight mb-1">
-              Job Details
-            </h1>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h1 className="font-display text-2xl font-black tracking-tight">
+                Job Details
+              </h1>
+              {job.videoType === VideoType.small ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                  <Zap className="w-3 h-3" />
+                  Small Video
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/25">
+                  <Clock className="w-3 h-3" />
+                  Long Video
+                </span>
+              )}
+            </div>
             <p className="font-mono text-xs text-muted-foreground">
               #{job.jobId.slice(0, 24)}…
             </p>

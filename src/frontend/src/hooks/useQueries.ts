@@ -1,7 +1,7 @@
 import { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppUserRole, Job, ShoppingItem, UserProfile } from "../backend";
-import { AppUserRole as AppUserRoleEnum } from "../backend";
+import { AppUserRole as AppUserRoleEnum, VideoType } from "../backend";
 import { ExternalBlob } from "../backend";
 import { useActor } from "./useActor";
 
@@ -133,12 +133,14 @@ export function useSubmitJob() {
       sourceVideoFile,
       referenceVideoFile,
       notes,
+      videoType,
       onSourceProgress,
       onRefProgress,
     }: {
       sourceVideoFile: File;
       referenceVideoFile: File;
       notes: string;
+      videoType: "small" | "medium" | "long";
       onSourceProgress?: (p: number) => void;
       onRefProgress?: (p: number) => void;
     }): Promise<string> => {
@@ -160,7 +162,12 @@ export function useSubmitJob() {
         sourceVideo: sourceBlob,
         referenceVideo: referenceBlob,
         notes,
-        price: BigInt(249900),
+        videoType:
+          videoType === "small"
+            ? VideoType.small
+            : videoType === "medium"
+              ? VideoType.medium
+              : VideoType.long_,
       });
 
       return checkoutUrl;
@@ -232,7 +239,7 @@ export function useSubmitFinalVideo() {
       const finalVideo = ExternalBlob.fromBytes(bytes).withUploadProgress(
         onProgress || (() => {}),
       );
-      await actor.submitFinalVideo({ jobId, finalVideo });
+      await actor.submitFinalVideo(jobId, finalVideo);
     },
     onSuccess: (_, { jobId }) => {
       queryClient.invalidateQueries({ queryKey: ["allJobs"] });
