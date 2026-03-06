@@ -110,6 +110,15 @@ export function AdminLoginPage() {
       const isValid = await verifyPasskey.mutateAsync(combined);
       if (isValid) {
         doNavigate();
+      } else if (isCallerAdmin === true) {
+        // No passkey has been set yet (e.g. after a redeploy) — allow the app
+        // admin through so they can set new credentials in the Security tab.
+        sessionStorage.setItem("adminAuthenticated", "true");
+        toast.success(
+          "Logged in — please set your admin credentials in the Security tab.",
+          { duration: 7000 },
+        );
+        navigate({ to: "/admin" });
       } else {
         setError("Incorrect email or password. Try again.");
       }
