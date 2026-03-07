@@ -18,13 +18,11 @@ import {
   Shield,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../../hooks/useActor";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
-import {
-  useIsCallerAdmin,
-  useVerifyAdminPasskey,
-} from "../../hooks/useQueries";
+import { useVerifyAdminPasskey } from "../../hooks/useQueries";
 import {
   authenticateFingerprint,
   hasFingerprintRegistered,
@@ -37,6 +35,8 @@ export function AdminLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [fingerprintLoading, setFingerprintLoading] = useState(false);
   const [bypassLoading, setBypassLoading] = useState(false);
+  // track whether we're waiting for II login to complete before doing bypass
+  const pendingBypassRef = useRef(false);
 
   const { identity, login, loginStatus, isInitializing } =
     useInternetIdentity();
@@ -44,7 +44,7 @@ export function AdminLoginPage() {
   const isLoggingIn = loginStatus === "logging-in";
 
   const verifyPasskey = useVerifyAdminPasskey();
-  const { data: isCallerAdmin } = useIsCallerAdmin();
+  const { actor } = useActor();
   const navigate = useNavigate();
 
   const fingerprintAvailable =
@@ -56,10 +56,56 @@ export function AdminLoginPage() {
     navigate({ to: "/admin" });
   };
 
+  // When actor becomes available after a pending bypass, run the check
+  useEffect(() => {
+    if (!pendingBypassRef.current || !actor) return;
+    pendingBypassRef.current = false;
+
+    void (async () => {
+      setBypassLoading(true);
+      try {
+        const isAdmin = await actor.isCallerAdmin();
+        if (isAdmin) {
+          sessionStorage.setItem("adminAuthenticated", "true");
+          toast.success(
+            "You're in — please set your admin email and password in the Security tab.",
+            { duration: 6000 },
+          );
+          navigate({ to: "/admin" });
+        } else {
+          setError(
+            "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
+          );
+          setBypassLoading(false);
+        }
+      } catch {
+        setError("Could not verify admin identity. Please try again.");
+        setBypassLoading(false);
+      }
+    })();
+  }, [actor, navigate]);
+
   const handleForgotPasskey = async () => {
+    setError(null);
+
+    if (!isAuthenticated) {
+      // Need to login with Internet Identity first, then the useEffect above will run
+      pendingBypassRef.current = true;
+      setBypassLoading(true);
+      login();
+      return;
+    }
+
+    // Already authenticated — check directly via actor
+    if (!actor) {
+      setError("Actor not ready. Please wait a moment and try again.");
+      return;
+    }
+
     setBypassLoading(true);
     try {
-      if (isCallerAdmin === true) {
+      const isAdmin = await actor.isCallerAdmin();
+      if (isAdmin) {
         sessionStorage.setItem("adminAuthenticated", "true");
         toast.success(
           "You're in — please set your admin email and password in the Security tab.",
@@ -67,8 +113,12 @@ export function AdminLoginPage() {
         );
         navigate({ to: "/admin" });
       } else {
-        setError("Only the app admin can bypass the login.");
+        setError(
+          "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
+        );
       }
+    } catch {
+      setError("Could not verify admin identity. Please try again.");
     } finally {
       setBypassLoading(false);
     }
@@ -114,14 +164,19 @@ export function AdminLoginPage() {
       );
       if (isValid) {
         doNavigate();
-      } else if (isCallerAdmin === true) {
-        // No credentials set yet (first-time setup or after redeploy)
-        sessionStorage.setItem("adminAuthenticated", "true");
-        toast.success(
-          "You're in — please set your admin email and password in the Security tab.",
-          { duration: 7000 },
-        );
-        navigate({ to: "/admin" });
+      } else if (actor) {
+        // Check if this is admin with no credentials set (first-time setup or after redeploy)
+        const isAdmin = await actor.isCallerAdmin();
+        if (isAdmin) {
+          sessionStorage.setItem("adminAuthenticated", "true");
+          toast.success(
+            "You're in — please set your admin email and password in the Security tab.",
+            { duration: 7000 },
+          );
+          navigate({ to: "/admin" });
+        } else {
+          setError("Incorrect email or password.");
+        }
       } else {
         setError("Incorrect email or password.");
       }
@@ -196,9 +251,9 @@ export function AdminLoginPage() {
                   data-ocid="admin_login.signin_button"
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
                   onClick={login}
-                  disabled={isLoggingIn}
+                  disabled={isLoggingIn || bypassLoading}
                 >
-                  {isLoggingIn ? (
+                  {isLoggingIn || (bypassLoading && !isAuthenticated) ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Signing in…
@@ -207,6 +262,41 @@ export function AdminLoginPage() {
                     "Sign in with Internet Identity"
                   )}
                 </Button>
+
+                {/* Forgot credentials — visible even before II login */}
+                <div className="pt-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-xs text-muted-foreground">
+                      forgot credentials?
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  <Button
+                    data-ocid="admin_login.forgot_passkey.button"
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-2 border-border text-muted-foreground hover:text-foreground hover:border-primary/40 font-display text-sm"
+                    onClick={handleForgotPasskey}
+                    disabled={bypassLoading || isLoggingIn}
+                  >
+                    {bypassLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Verifying identity…
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-4 h-4" />
+                        Reset credentials via Internet Identity
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    Sign in with Internet Identity to verify you are the app
+                    admin, then reset your credentials in the Security tab.
+                  </p>
+                </div>
               </motion.div>
             )}
 
@@ -361,7 +451,7 @@ export function AdminLoginPage() {
                     variant="outline"
                     className="w-full gap-2 border-border text-muted-foreground hover:text-foreground hover:border-primary/40 font-display text-sm"
                     onClick={handleForgotPasskey}
-                    disabled={bypassLoading || isCallerAdmin === undefined}
+                    disabled={bypassLoading}
                   >
                     {bypassLoading ? (
                       <>
