@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useInternetIdentity } from "./useInternetIdentity";
 
 // Simple, deterministic string hash — UI-only gating, not real security
@@ -26,6 +27,9 @@ function storageKey(principalText: string): string {
 export function useEmailAuth() {
   const { identity } = useInternetIdentity();
   const principalText = identity?.getPrincipal().toString() ?? "";
+
+  // Trigger re-renders when auth state changes
+  const [, forceUpdate] = useState(0);
 
   function getRecord(): EmailAuthRecord | null {
     if (!principalText) return null;
@@ -57,6 +61,7 @@ export function useEmailAuth() {
     };
     saveRecord(newRecord);
     sessionStorage.setItem(SESSION_KEY, principalText);
+    forceUpdate((n) => n + 1);
   }
 
   function loginWithEmail(email: string, password: string): boolean {
@@ -65,6 +70,7 @@ export function useEmailAuth() {
     const passwordMatch = record.passwordHash === hashPassword(password);
     if (emailMatch && passwordMatch) {
       sessionStorage.setItem(SESSION_KEY, principalText);
+      forceUpdate((n) => n + 1);
       return true;
     }
     return false;
@@ -72,6 +78,7 @@ export function useEmailAuth() {
 
   function logout(): void {
     sessionStorage.removeItem(SESSION_KEY);
+    forceUpdate((n) => n + 1);
   }
 
   function getStoredName(): string {

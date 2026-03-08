@@ -60,14 +60,14 @@ export function EmailAuthModal({ open }: EmailAuthModalProps) {
 
     setIsPending(true);
     try {
-      // Register email auth first
-      register(name.trim(), email.trim(), password);
-
-      // Save profile to backend
+      // Save profile to backend first
       await saveMutation.mutateAsync({
         name: name.trim(),
         appRole: AppUserRole.client,
       });
+
+      // Register email auth (also sets session, triggers re-render)
+      register(name.trim(), email.trim(), password);
 
       toast.success(`Welcome to videru, ${name.trim()}!`);
     } catch {
