@@ -346,7 +346,6 @@ function RevenueTab({ allJobs }: { allJobs: Job[] }) {
 
 function SecurityTab() {
   const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
   const [fingerprintRegistered, setFingerprintRegistered] = useState(
     hasFingerprintRegistered,
   );
@@ -360,22 +359,13 @@ function SecurityTab() {
       toast.error("Please enter your admin email address.");
       return;
     }
-    if (adminPassword.length < 6) {
-      toast.error("Password must be at least 6 characters.");
-      return;
-    }
     try {
-      await setAdminPasskey.mutateAsync(
-        `${adminEmail.trim()}:${adminPassword}`,
-      );
-      toast.success("Admin email and password updated successfully.");
+      await setAdminPasskey.mutateAsync(adminEmail.trim());
+      toast.success("Admin email updated successfully.");
       setAdminEmail("");
-      setAdminPassword("");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Failed to update admin credentials.",
+        err instanceof Error ? err.message : "Failed to update admin email.",
       );
     }
   };
@@ -414,12 +404,13 @@ function SecurityTab() {
         <Mail className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-400" />
         <div>
           <p className="font-medium text-blue-300 mb-0.5">
-            Set your admin email and password below.
+            Set your admin email below.
           </p>
           <p className="text-muted-foreground text-xs leading-relaxed">
-            These will be used to log in to the admin portal. If you have
-            forgotten your credentials, use "Reset via Internet Identity" on the
-            login page to reach this tab.
+            You will receive an OTP to verify your identity when logging in. The
+            OTP is displayed on screen during the login process. If you have
+            forgotten your email, use "Reset via Internet Identity" on the login
+            page to reach this tab.
           </p>
         </div>
       </div>
@@ -497,15 +488,15 @@ function SecurityTab() {
         </Card>
       )}
 
-      {/* Admin Credentials Section */}
+      {/* Admin Email Section */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-4">
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Mail className="w-5 h-5 text-primary" />
-            Set Admin Credentials
+            Set Admin Email
           </CardTitle>
           <CardDescription>
-            Set the email and password used to log in to the admin portal.
+            Set the email address used to log in to the admin portal via OTP.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -530,43 +521,19 @@ function SecurityTab() {
               />
             </div>
 
-            {/* Password input */}
-            <div className="space-y-2">
-              <Label
-                htmlFor="security-admin-password"
-                className="text-sm font-medium"
-              >
-                Admin Password
-              </Label>
-              <Input
-                id="security-admin-password"
-                data-ocid="admin.security.password.input"
-                type="password"
-                placeholder="Min. 6 characters"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                className="bg-input border-border"
-                autoComplete="new-password"
-              />
-            </div>
-
             {/* Note */}
             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
               <Shield className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-primary" />
               <p>
-                You will use this email and password every time you log in to
-                the admin portal. Keep them safe and do not share them.
+                This email will be used to verify your identity when logging in.
+                An OTP will be shown on screen during the login process.
               </p>
             </div>
 
             <Button
               data-ocid="admin.security.save_passkey.button"
               type="submit"
-              disabled={
-                setAdminPasskey.isPending ||
-                !adminEmail.trim() ||
-                adminPassword.length < 6
-              }
+              disabled={setAdminPasskey.isPending || !adminEmail.trim()}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
             >
               {setAdminPasskey.isPending ? (
@@ -577,7 +544,7 @@ function SecurityTab() {
               ) : (
                 <>
                   <Mail className="w-4 h-4" />
-                  Save Admin Credentials
+                  Save Admin Email
                 </>
               )}
             </Button>
@@ -587,7 +554,7 @@ function SecurityTab() {
                 data-ocid="admin.security.success_state"
                 className="text-sm text-center text-[oklch(0.75_0.18_148)]"
               >
-                ✓ Admin email and password updated successfully
+                ✓ Admin email updated successfully
               </p>
             )}
             {setAdminPasskey.isError && (
@@ -595,7 +562,7 @@ function SecurityTab() {
                 data-ocid="admin.security.error_state"
                 className="text-sm text-center text-destructive"
               >
-                Failed to update credentials. Try again.
+                Failed to update admin email. Try again.
               </p>
             )}
           </form>

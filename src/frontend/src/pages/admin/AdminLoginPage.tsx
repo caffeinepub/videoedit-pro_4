@@ -19,6 +19,7 @@ import {
   Mail,
   RefreshCw,
   Shield,
+  Timer,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -35,33 +36,50 @@ import {
   isWebAuthnSupported,
 } from "../../hooks/useWebAuthn";
 
-const ADMIN_EMAIL = "Vijayanr181@gmail.com";
+const OTP_EXPIRY_SECONDS = 300; // 5 minutes
+
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 export function AdminLoginPage() {
-  const [email, setEmail] = useState(ADMIN_EMAIL);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // Step: "ii-gate" | "email" | "otp" | "set-credentials"
+  const [step, setStep] = useState<
+    "ii-gate" | "email" | "otp" | "set-credentials"
+  >("ii-gate");
+
+  // Email step
+  const [email, setEmail] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // OTP step
+  const [generatedOtp, setGeneratedOtp] = useState<string>("");
+  const [enteredOtp, setEnteredOtp] = useState("");
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(OTP_EXPIRY_SECONDS);
+  const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Set credentials (after II bypass)
+  const [newEmail, setNewEmail] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Fingerprint + bypass state
   const [fingerprintLoading, setFingerprintLoading] = useState(false);
   const [bypassLoading, setBypassLoading] = useState(false);
-  const [loginLoading, setLoginLoading] = useState(false);
-  // After II bypass succeeds, show a "set new credentials" form instead of going straight to admin
-  const [showSetCredentials, setShowSetCredentials] = useState(false);
-  const [newEmail, setNewEmail] = useState(ADMIN_EMAIL);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [saveError, setSaveError] = useState<string | null>(null);
-  // track whether we're waiting for II login to complete before doing bypass
   const pendingBypassRef = useRef(false);
-  // track whether we're waiting for II login to complete before re-trying sign-in
-  const pendingSignInRef = useRef(false);
-  // Store latest email/password in refs so the actor useEffect can access them without deps
-  const emailRef = useRef(ADMIN_EMAIL);
-  const passwordRef = useRef("");
 
   const { identity, login, loginStatus, isInitializing } =
     useInternetIdentity();
   const isAuthenticated = !!identity;
   const isLoggingIn = loginStatus === "logging-in";
+
+  // Advance past the II gate once the user successfully authenticates
+  useEffect(() => {
+    if (isAuthenticated && step === "ii-gate") {
+      setStep("email");
+    }
+  }, [isAuthenticated, step]);
 
   const verifyPasskey = useVerifyAdminPasskey();
   const setAdminPasskey = useSetAdminPasskey();
@@ -71,22 +89,39 @@ export function AdminLoginPage() {
   const fingerprintAvailable =
     isWebAuthnSupported() && hasFingerprintRegistered();
 
-  // Keep refs in sync with state
-  emailRef.current = email;
-  passwordRef.current = password;
-
   const doNavigate = () => {
     sessionStorage.setItem("adminAuthenticated", "true");
     toast.success("Welcome to the Admin Portal");
     navigate({ to: "/admin" });
   };
 
-  // When actor becomes available after a pending bypass or pending sign-in, run the relevant check
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional – all other values read via stable refs
+  // OTP countdown timer — restart whenever step enters "otp"
+  useEffect(() => {
+    if (step !== "otp") return;
+    setOtpSecondsLeft(OTP_EXPIRY_SECONDS);
+    otpTimerRef.current = setInterval(() => {
+      setOtpSecondsLeft((s) => {
+        if (s <= 1) {
+          if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => {
+      if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+    };
+  }, [step]);
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
+  // When actor becomes available after pending bypass
   useEffect(() => {
     if (!actor) return;
-
-    // Pending bypass: verify II identity and show reset form
     if (pendingBypassRef.current) {
       pendingBypassRef.current = false;
       void (async () => {
@@ -94,116 +129,91 @@ export function AdminLoginPage() {
         try {
           const isAdmin = await actor.isCallerAdmin();
           if (isAdmin) {
-            setShowSetCredentials(true);
+            setStep("set-credentials");
           } else {
-            setError(
+            setEmailError(
               "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
             );
           }
         } catch {
-          setError("Could not verify admin identity. Please try again.");
+          setEmailError("Could not verify admin identity. Please try again.");
         } finally {
           setBypassLoading(false);
-        }
-      })();
-      return;
-    }
-
-    // Pending sign-in: try passkey again, then fall back to isCallerAdmin
-    if (pendingSignInRef.current) {
-      pendingSignInRef.current = false;
-      const savedEmail = emailRef.current;
-      const savedPassword = passwordRef.current;
-      void (async () => {
-        setLoginLoading(true);
-        try {
-          const combinedKey = `${savedEmail.trim()}:${savedPassword}`;
-          const isValid = await verifyPasskey.mutateAsync(combinedKey);
-          if (isValid) {
-            doNavigate();
-            return;
-          }
-          // Passkey may be null after redeploy — check if caller is admin
-          const isAdmin = await actor.isCallerAdmin();
-          if (isAdmin) {
-            // Auto-open reset form so they can set credentials
-            setShowSetCredentials(true);
-            toast.info(
-              "Credentials were reset after a redeploy. Please set a new password.",
-              { duration: 6000 },
-            );
-          } else {
-            setError("Incorrect email or password.");
-          }
-        } catch {
-          setError("Verification failed. Please try again.");
-        } finally {
-          setLoginLoading(false);
         }
       })();
     }
   }, [actor]);
 
-  const handleForgotPasskey = async () => {
-    setError(null);
-
-    if (!isAuthenticated) {
-      // Need to login with Internet Identity first, then the useEffect above will run
-      pendingBypassRef.current = true;
-      setBypassLoading(true);
-      login();
+  // Step 1: Send OTP
+  const handleSendOtp = async () => {
+    setEmailError(null);
+    if (!email.trim()) {
+      setEmailError("Please enter your admin email address.");
       return;
     }
 
-    // Already authenticated — check directly via actor
-    if (!actor) {
-      setError("Actor not ready. Please wait a moment and try again.");
-      return;
-    }
-
-    setBypassLoading(true);
+    setEmailLoading(true);
     try {
-      const isAdmin = await actor.isCallerAdmin();
-      if (isAdmin) {
-        setShowSetCredentials(true);
-      } else {
-        setError(
-          "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
-        );
+      // Check if email matches stored admin email
+      let emailMatch = false;
+      let noCredentials = false;
+      try {
+        emailMatch = await verifyPasskey.mutateAsync(email.trim());
+      } catch {
+        // Error means no credentials set yet (first-time setup)
+        noCredentials = true;
       }
+
+      if (!noCredentials && !emailMatch) {
+        setEmailError("This email is not registered as admin email.");
+        return;
+      }
+
+      // Generate and show OTP
+      const otp = generateOtp();
+      setGeneratedOtp(otp);
+      setEnteredOtp("");
+      setOtpError(null);
+      setStep("otp");
     } catch {
-      setError("Could not verify admin identity. Please try again.");
+      setEmailError("Failed to verify email. Please try again.");
     } finally {
-      setBypassLoading(false);
+      setEmailLoading(false);
     }
   };
 
-  const handleSaveNewCredentials = async () => {
-    setSaveError(null);
-    if (!newEmail.trim()) {
-      setSaveError("Please enter your new admin email.");
+  // Step 2: Verify OTP
+  const handleVerifyOtp = () => {
+    setOtpError(null);
+    if (!enteredOtp.trim()) {
+      setOtpError("Please enter the OTP.");
       return;
     }
-    if (!newPassword) {
-      setSaveError("Please enter a new password.");
+    if (otpSecondsLeft === 0) {
+      setOtpError("OTP has expired. Please request a new one.");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setSaveError("Passwords do not match.");
+    if (enteredOtp.trim() !== generatedOtp) {
+      setOtpError("Incorrect OTP. Please try again.");
       return;
     }
-    try {
-      await setAdminPasskey.mutateAsync(`${newEmail.trim()}:${newPassword}`);
-      sessionStorage.setItem("adminAuthenticated", "true");
-      toast.success("Credentials saved! Welcome to the Admin Portal.");
-      navigate({ to: "/admin" });
-    } catch {
-      setSaveError("Failed to save credentials. Please try again.");
-    }
+    doNavigate();
   };
 
+  // Resend OTP
+  const handleResendOtp = () => {
+    const otp = generateOtp();
+    setGeneratedOtp(otp);
+    setEnteredOtp("");
+    setOtpError(null);
+    if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+    setOtpSecondsLeft(OTP_EXPIRY_SECONDS);
+    toast.success("New OTP generated.");
+  };
+
+  // Fingerprint login
   const handleFingerprintLogin = async () => {
-    setError(null);
+    setEmailError(null);
     setFingerprintLoading(true);
     try {
       const storedPasskey = await authenticateFingerprint();
@@ -211,12 +221,12 @@ export function AdminLoginPage() {
       if (isValid) {
         doNavigate();
       } else {
-        setError(
+        setEmailError(
           "Fingerprint verified but passkey mismatch. Try re-registering your fingerprint in the Security tab.",
         );
       }
     } catch (err) {
-      setError(
+      setEmailError(
         err instanceof Error
           ? err.message
           : "Fingerprint authentication failed.",
@@ -226,56 +236,50 @@ export function AdminLoginPage() {
     }
   };
 
-  const handleSignIn = async () => {
-    setError(null);
-    if (!email.trim()) {
-      setError("Please enter your admin email address.");
+  // Reset credentials via Internet Identity
+  const handleForgotPasskey = async () => {
+    setEmailError(null);
+    if (!isAuthenticated) {
+      pendingBypassRef.current = true;
+      setBypassLoading(true);
+      login();
       return;
     }
-    if (!password) {
-      setError("Please enter your admin password.");
+    if (!actor) {
+      setEmailError("Actor not ready. Please wait a moment and try again.");
       return;
     }
-
-    setLoginLoading(true);
-
+    setBypassLoading(true);
     try {
-      const combinedKey = `${email.trim()}:${password}`;
-      const isValid = await verifyPasskey.mutateAsync(combinedKey);
-      if (isValid) {
-        doNavigate();
-        return;
-      }
-
-      // Passkey may be null (after redeploy). If actor is ready, check isCallerAdmin.
-      if (actor) {
-        const isAdmin = await actor.isCallerAdmin();
-        if (isAdmin) {
-          // Auto-open reset form
-          setShowSetCredentials(true);
-          toast.info(
-            "Credentials were reset after a redeploy. Please set your new password.",
-            { duration: 6000 },
-          );
-        } else {
-          // Not signed in with II yet — prompt II login then re-check
-          setError(
-            "Credentials not found. This can happen after a redeploy. Sign in with Internet Identity to reset your credentials.",
-          );
-        }
+      const isAdmin = await actor.isCallerAdmin();
+      if (isAdmin) {
+        setStep("set-credentials");
       } else {
-        // Actor not ready — trigger II login if not authenticated, then retry
-        if (!isAuthenticated) {
-          pendingSignInRef.current = true;
-          login();
-        } else {
-          setError("Incorrect email or password.");
-        }
+        setEmailError(
+          "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
+        );
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Verification failed.");
+    } catch {
+      setEmailError("Could not verify admin identity. Please try again.");
     } finally {
-      setLoginLoading(false);
+      setBypassLoading(false);
+    }
+  };
+
+  // Save new email (from reset flow)
+  const handleSaveNewEmail = async () => {
+    setSaveError(null);
+    if (!newEmail.trim()) {
+      setSaveError("Please enter your new admin email.");
+      return;
+    }
+    try {
+      await setAdminPasskey.mutateAsync(newEmail.trim());
+      sessionStorage.setItem("adminAuthenticated", "true");
+      toast.success("Admin email saved! Welcome to the Admin Portal.");
+      navigate({ to: "/admin" });
+    } catch {
+      setSaveError("Failed to save admin email. Please try again.");
     }
   };
 
@@ -320,19 +324,82 @@ export function AdminLoginPage() {
         <Card className="bg-card border-border shadow-lg">
           <CardHeader className="pb-4">
             <CardTitle className="font-display text-lg">
-              {showSetCredentials ? "Set New Admin Credentials" : "Sign in"}
+              {step === "set-credentials"
+                ? "Set New Admin Email"
+                : step === "otp"
+                  ? "Verify OTP"
+                  : step === "ii-gate"
+                    ? "Verify Identity"
+                    : "Sign in"}
             </CardTitle>
             <CardDescription>
-              {showSetCredentials
-                ? "Identity verified. Set a new email and password for admin login."
-                : !isAuthenticated
-                  ? "Sign in with your admin email and password."
-                  : "Enter your admin email and password to access the portal."}
+              {step === "set-credentials"
+                ? "Identity verified. Set your new admin email address."
+                : step === "otp"
+                  ? "Enter the OTP shown below to access the admin portal."
+                  : step === "ii-gate"
+                    ? "You must sign in with Internet Identity before accessing the admin portal."
+                    : "Enter your admin email to receive an OTP."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Set new credentials after II bypass */}
-            {showSetCredentials && (
+            {/* ── II Gate (must authenticate before email step) ── */}
+            {step === "ii-gate" && (
+              <motion.div
+                key="ii-gate-step"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-5"
+                data-ocid="admin_login.ii_gate.panel"
+              >
+                <div className="flex flex-col items-center gap-4 py-4 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                    <Lock className="w-7 h-7 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Internet Identity required
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+                      Admin access requires you to first verify your identity
+                      with Internet Identity. This ensures only authorised
+                      personnel can log in.
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  data-ocid="admin_login.ii_gate.button"
+                  type="button"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2 h-11"
+                  onClick={login}
+                  disabled={isLoggingIn}
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Signing in…
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-4 h-4" />
+                      Sign in with Internet Identity
+                    </>
+                  )}
+                </Button>
+
+                <p className="text-center text-xs text-muted-foreground">
+                  Not an admin?{" "}
+                  <a href="/" className="text-primary hover:underline">
+                    Return to home
+                  </a>
+                </p>
+              </motion.div>
+            )}
+
+            {/* ── Set credentials (after II bypass) ── */}
+            {step === "set-credentials" && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -342,8 +409,8 @@ export function AdminLoginPage() {
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-700 dark:text-green-400">
                   <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <p>
-                    Identity verified via Internet Identity. Set your new login
-                    credentials below.
+                    Identity verified via Internet Identity. Set your new admin
+                    email below.
                   </p>
                 </div>
 
@@ -366,62 +433,12 @@ export function AdminLoginPage() {
                         setNewEmail(e.target.value);
                         setSaveError(null);
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveNewEmail();
+                      }}
                       className="bg-input border-border focus:border-primary pl-10"
                       autoFocus
                       autoComplete="email"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="new-admin-password"
-                    className="text-sm font-medium"
-                  >
-                    New Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="new-admin-password"
-                      data-ocid="admin_reset.password.input"
-                      type="password"
-                      placeholder="••••••••"
-                      value={newPassword}
-                      onChange={(e) => {
-                        setNewPassword(e.target.value);
-                        setSaveError(null);
-                      }}
-                      className="bg-input border-border focus:border-primary pl-10"
-                      autoComplete="new-password"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="confirm-admin-password"
-                    className="text-sm font-medium"
-                  >
-                    Confirm Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="confirm-admin-password"
-                      data-ocid="admin_reset.confirm_password.input"
-                      type="password"
-                      placeholder="••••••••"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setSaveError(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveNewCredentials();
-                      }}
-                      className="bg-input border-border focus:border-primary pl-10"
-                      autoComplete="new-password"
                     />
                   </div>
                 </div>
@@ -442,13 +459,8 @@ export function AdminLoginPage() {
                   data-ocid="admin_reset.save.button"
                   type="button"
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
-                  onClick={handleSaveNewCredentials}
-                  disabled={
-                    setAdminPasskey.isPending ||
-                    !newEmail.trim() ||
-                    !newPassword ||
-                    !confirmPassword
-                  }
+                  onClick={handleSaveNewEmail}
+                  disabled={setAdminPasskey.isPending || !newEmail.trim()}
                 >
                   {setAdminPasskey.isPending ? (
                     <>
@@ -465,33 +477,135 @@ export function AdminLoginPage() {
               </motion.div>
             )}
 
-            {/* Email + Password flow (shown once II is authenticated or not yet needed) */}
-            {!showSetCredentials && (
+            {/* ── OTP step ── */}
+            {step === "otp" && (
               <motion.div
+                key="otp-step"
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-5"
+              >
+                {/* OTP display box */}
+                <div className="flex flex-col items-center gap-2 p-5 rounded-xl bg-primary/5 border-2 border-primary/25">
+                  <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+                    Your OTP
+                  </p>
+                  <p
+                    className="font-mono text-4xl font-black tracking-[0.25em] text-primary select-all"
+                    data-ocid="admin_login.otp.panel"
+                  >
+                    {generatedOtp}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Copy and enter this code below
+                  </p>
+                </div>
+
+                {/* Countdown */}
+                <div
+                  className={`flex items-center justify-center gap-2 text-sm font-mono ${
+                    otpSecondsLeft <= 60
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  <Timer className="w-4 h-4" />
+                  {otpSecondsLeft > 0 ? (
+                    <span>
+                      OTP expires in{" "}
+                      <strong>{formatCountdown(otpSecondsLeft)}</strong>
+                    </span>
+                  ) : (
+                    <span className="text-destructive font-semibold">
+                      OTP has expired
+                    </span>
+                  )}
+                </div>
+
+                {/* OTP input */}
+                <div className="space-y-2">
+                  <Label htmlFor="otp-input" className="text-sm font-medium">
+                    Enter OTP
+                  </Label>
+                  <Input
+                    id="otp-input"
+                    data-ocid="admin_login.otp.input"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="123456"
+                    maxLength={6}
+                    value={enteredOtp}
+                    onChange={(e) => {
+                      setEnteredOtp(e.target.value.replace(/\D/g, ""));
+                      if (otpError) setOtpError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleVerifyOtp();
+                    }}
+                    className="bg-input border-border focus:border-primary text-center font-mono text-xl tracking-widest h-12"
+                    autoFocus
+                    autoComplete="one-time-code"
+                  />
+                </div>
+
+                {otpError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    data-ocid="admin_login.otp.error_state"
+                    className="text-sm text-destructive flex items-center gap-1.5 bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2"
+                  >
+                    <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                    {otpError}
+                  </motion.p>
+                )}
+
+                <Button
+                  data-ocid="admin_login.otp.verify_button"
+                  type="button"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
+                  onClick={handleVerifyOtp}
+                  disabled={enteredOtp.length !== 6 || otpSecondsLeft === 0}
+                >
+                  <Shield className="w-4 h-4" />
+                  Verify OTP
+                </Button>
+
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    data-ocid="admin_login.otp.resend_button"
+                    className="text-sm text-primary hover:underline font-medium"
+                    onClick={handleResendOtp}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 inline mr-1" />
+                    Resend OTP
+                  </button>
+                  <button
+                    type="button"
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setStep("email");
+                      setOtpError(null);
+                      setEnteredOtp("");
+                    }}
+                  >
+                    ← Change email
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── Email step ── */}
+            {step === "email" && (
+              <motion.div
+                key="email-step"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
                 className="space-y-5"
               >
-                {/* Step 1: II login prompt (only when not yet authenticated) */}
-                {!isAuthenticated && (
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border text-sm text-muted-foreground">
-                    <Lock className="w-4 h-4 mt-0.5 flex-shrink-0 text-primary" />
-                    <p>
-                      Sign in with Internet Identity to enable all admin
-                      features.{" "}
-                      <button
-                        type="button"
-                        className="text-primary underline hover:no-underline font-medium"
-                        onClick={login}
-                        disabled={isLoggingIn}
-                      >
-                        {isLoggingIn ? "Signing in…" : "Sign in now"}
-                      </button>
-                    </p>
-                  </div>
-                )}
-
                 {/* Fingerprint button — shown when registered and II authenticated */}
                 {fingerprintAvailable && isAuthenticated && (
                   <div className="space-y-3">
@@ -518,135 +632,74 @@ export function AdminLoginPage() {
                     <div className="flex items-center gap-3">
                       <div className="h-px flex-1 bg-border" />
                       <span className="text-xs text-muted-foreground">
-                        or sign in with email and password
+                        or sign in with email OTP
                       </span>
                       <div className="h-px flex-1 bg-border" />
                     </div>
                   </div>
                 )}
 
-                <motion.div
-                  initial={{ opacity: 0, x: -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-4"
-                >
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="admin-email"
-                      className="text-sm font-medium"
-                    >
-                      Admin Email
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="admin-email"
-                        data-ocid="admin_login.email.input"
-                        type="email"
-                        placeholder="your@gmail.com"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          if (error) setError(null);
-                        }}
-                        className="bg-input border-border focus:border-primary pl-10"
-                        autoFocus={!fingerprintAvailable}
-                        autoComplete="email"
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email" className="text-sm font-medium">
+                    Admin Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="admin-email"
+                      data-ocid="admin_login.email.input"
+                      type="email"
+                      placeholder="your@gmail.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSendOtp();
+                      }}
+                      className="bg-input border-border focus:border-primary pl-10"
+                      autoFocus={!fingerprintAvailable}
+                      autoComplete="email"
+                    />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="admin-password"
-                      className="text-sm font-medium"
-                    >
-                      Admin Password
-                    </Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="admin-password"
-                        data-ocid="admin_login.password.input"
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          if (error) setError(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSignIn();
-                        }}
-                        className="bg-input border-border focus:border-primary pl-10"
-                        autoComplete="current-password"
-                      />
-                    </div>
-                  </div>
-
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      data-ocid="admin_login.error_state"
-                      className="rounded-md bg-destructive/5 border border-destructive/20 px-3 py-2 space-y-2"
-                    >
-                      <p className="text-sm text-destructive flex items-center gap-1.5">
-                        <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                        {error}
-                      </p>
-                      {/* If credentials not found (post-redeploy), offer quick reset */}
-                      {error.includes("reset") && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="w-full gap-2 text-xs border-destructive/30 text-destructive hover:bg-destructive/5"
-                          onClick={handleForgotPasskey}
-                          disabled={bypassLoading || isLoggingIn}
-                        >
-                          {bypassLoading || isLoggingIn ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              Verifying…
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5" />
-                              Reset credentials via Internet Identity
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </motion.div>
-                  )}
-
-                  <Button
-                    data-ocid="admin_login.signin.button"
-                    type="button"
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
-                    onClick={handleSignIn}
-                    disabled={
-                      loginLoading ||
-                      verifyPasskey.isPending ||
-                      !email.trim() ||
-                      !password
-                    }
+                {emailError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    data-ocid="admin_login.error_state"
+                    className="rounded-md bg-destructive/5 border border-destructive/20 px-3 py-2"
                   >
-                    {loginLoading || verifyPasskey.isPending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Verifying…
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="w-4 h-4" />
-                        Sign In
-                      </>
-                    )}
-                  </Button>
-                </motion.div>
+                    <p className="text-sm text-destructive flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                      {emailError}
+                    </p>
+                  </motion.div>
+                )}
+
+                <Button
+                  data-ocid="admin_login.send_otp.button"
+                  type="button"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
+                  onClick={handleSendOtp}
+                  disabled={
+                    emailLoading || verifyPasskey.isPending || !email.trim()
+                  }
+                >
+                  {emailLoading || verifyPasskey.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Verifying…
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      Send OTP
+                    </>
+                  )}
+                </Button>
 
                 {/* Forgot / Reset credentials */}
                 <div className="pt-2">
@@ -666,37 +719,9 @@ export function AdminLoginPage() {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       If login fails after a new version is deployed, click the
-                      button below to verify your identity and set a fresh
-                      password.
+                      button below to verify your identity and set a new admin
+                      email.
                     </p>
-                  </div>
-
-                  {/* Admin credentials hint box */}
-                  <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 space-y-2">
-                    <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5" />
-                      Saved Admin Credentials
-                    </p>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-xs text-muted-foreground">
-                          Email:
-                        </span>
-                        <span className="text-xs font-mono font-medium text-foreground select-all">
-                          {ADMIN_EMAIL}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <KeyRound className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-xs text-muted-foreground">
-                          Password:
-                        </span>
-                        <span className="text-xs font-mono font-medium text-foreground select-all">
-                          Vij9633188098
-                        </span>
-                      </div>
-                    </div>
                   </div>
 
                   <Button
@@ -721,7 +746,7 @@ export function AdminLoginPage() {
                   </Button>
                   <p className="text-xs text-muted-foreground text-center mt-2">
                     Verify you are the app admin via Internet Identity, then set
-                    a new email and password right here.
+                    a new admin email right here.
                   </p>
                 </div>
               </motion.div>
