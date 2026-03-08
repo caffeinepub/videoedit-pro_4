@@ -10,11 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  AlertTriangle,
+  CheckCircle2,
   Fingerprint,
   KeyRound,
   Loader2,
   Lock,
   Mail,
+  RefreshCw,
   Shield,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -22,21 +25,38 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../../hooks/useActor";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
-import { useVerifyAdminPasskey } from "../../hooks/useQueries";
+import {
+  useSetAdminPasskey,
+  useVerifyAdminPasskey,
+} from "../../hooks/useQueries";
 import {
   authenticateFingerprint,
   hasFingerprintRegistered,
   isWebAuthnSupported,
 } from "../../hooks/useWebAuthn";
 
+const ADMIN_EMAIL = "Vijayanr181@gmail.com";
+
 export function AdminLoginPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fingerprintLoading, setFingerprintLoading] = useState(false);
   const [bypassLoading, setBypassLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  // After II bypass succeeds, show a "set new credentials" form instead of going straight to admin
+  const [showSetCredentials, setShowSetCredentials] = useState(false);
+  const [newEmail, setNewEmail] = useState(ADMIN_EMAIL);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
   // track whether we're waiting for II login to complete before doing bypass
   const pendingBypassRef = useRef(false);
+  // track whether we're waiting for II login to complete before re-trying sign-in
+  const pendingSignInRef = useRef(false);
+  // Store latest email/password in refs so the actor useEffect can access them without deps
+  const emailRef = useRef(ADMIN_EMAIL);
+  const passwordRef = useRef("");
 
   const { identity, login, loginStatus, isInitializing } =
     useInternetIdentity();
@@ -44,11 +64,16 @@ export function AdminLoginPage() {
   const isLoggingIn = loginStatus === "logging-in";
 
   const verifyPasskey = useVerifyAdminPasskey();
+  const setAdminPasskey = useSetAdminPasskey();
   const { actor } = useActor();
   const navigate = useNavigate();
 
   const fingerprintAvailable =
     isWebAuthnSupported() && hasFingerprintRegistered();
+
+  // Keep refs in sync with state
+  emailRef.current = email;
+  passwordRef.current = password;
 
   const doNavigate = () => {
     sessionStorage.setItem("adminAuthenticated", "true");
@@ -56,34 +81,68 @@ export function AdminLoginPage() {
     navigate({ to: "/admin" });
   };
 
-  // When actor becomes available after a pending bypass, run the check
+  // When actor becomes available after a pending bypass or pending sign-in, run the relevant check
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional – all other values read via stable refs
   useEffect(() => {
-    if (!pendingBypassRef.current || !actor) return;
-    pendingBypassRef.current = false;
+    if (!actor) return;
 
-    void (async () => {
-      setBypassLoading(true);
-      try {
-        const isAdmin = await actor.isCallerAdmin();
-        if (isAdmin) {
-          sessionStorage.setItem("adminAuthenticated", "true");
-          toast.success(
-            "You're in — please set your admin email and password in the Security tab.",
-            { duration: 6000 },
-          );
-          navigate({ to: "/admin" });
-        } else {
-          setError(
-            "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
-          );
+    // Pending bypass: verify II identity and show reset form
+    if (pendingBypassRef.current) {
+      pendingBypassRef.current = false;
+      void (async () => {
+        setBypassLoading(true);
+        try {
+          const isAdmin = await actor.isCallerAdmin();
+          if (isAdmin) {
+            setShowSetCredentials(true);
+          } else {
+            setError(
+              "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
+            );
+          }
+        } catch {
+          setError("Could not verify admin identity. Please try again.");
+        } finally {
           setBypassLoading(false);
         }
-      } catch {
-        setError("Could not verify admin identity. Please try again.");
-        setBypassLoading(false);
-      }
-    })();
-  }, [actor, navigate]);
+      })();
+      return;
+    }
+
+    // Pending sign-in: try passkey again, then fall back to isCallerAdmin
+    if (pendingSignInRef.current) {
+      pendingSignInRef.current = false;
+      const savedEmail = emailRef.current;
+      const savedPassword = passwordRef.current;
+      void (async () => {
+        setLoginLoading(true);
+        try {
+          const combinedKey = `${savedEmail.trim()}:${savedPassword}`;
+          const isValid = await verifyPasskey.mutateAsync(combinedKey);
+          if (isValid) {
+            doNavigate();
+            return;
+          }
+          // Passkey may be null after redeploy — check if caller is admin
+          const isAdmin = await actor.isCallerAdmin();
+          if (isAdmin) {
+            // Auto-open reset form so they can set credentials
+            setShowSetCredentials(true);
+            toast.info(
+              "Credentials were reset after a redeploy. Please set a new password.",
+              { duration: 6000 },
+            );
+          } else {
+            setError("Incorrect email or password.");
+          }
+        } catch {
+          setError("Verification failed. Please try again.");
+        } finally {
+          setLoginLoading(false);
+        }
+      })();
+    }
+  }, [actor]);
 
   const handleForgotPasskey = async () => {
     setError(null);
@@ -106,12 +165,7 @@ export function AdminLoginPage() {
     try {
       const isAdmin = await actor.isCallerAdmin();
       if (isAdmin) {
-        sessionStorage.setItem("adminAuthenticated", "true");
-        toast.success(
-          "You're in — please set your admin email and password in the Security tab.",
-          { duration: 6000 },
-        );
-        navigate({ to: "/admin" });
+        setShowSetCredentials(true);
       } else {
         setError(
           "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
@@ -121,6 +175,30 @@ export function AdminLoginPage() {
       setError("Could not verify admin identity. Please try again.");
     } finally {
       setBypassLoading(false);
+    }
+  };
+
+  const handleSaveNewCredentials = async () => {
+    setSaveError(null);
+    if (!newEmail.trim()) {
+      setSaveError("Please enter your new admin email.");
+      return;
+    }
+    if (!newPassword) {
+      setSaveError("Please enter a new password.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setSaveError("Passwords do not match.");
+      return;
+    }
+    try {
+      await setAdminPasskey.mutateAsync(`${newEmail.trim()}:${newPassword}`);
+      sessionStorage.setItem("adminAuthenticated", "true");
+      toast.success("Credentials saved! Welcome to the Admin Portal.");
+      navigate({ to: "/admin" });
+    } catch {
+      setSaveError("Failed to save credentials. Please try again.");
     }
   };
 
@@ -158,30 +236,46 @@ export function AdminLoginPage() {
       setError("Please enter your admin password.");
       return;
     }
+
+    setLoginLoading(true);
+
     try {
-      const isValid = await verifyPasskey.mutateAsync(
-        `${email.trim()}:${password}`,
-      );
+      const combinedKey = `${email.trim()}:${password}`;
+      const isValid = await verifyPasskey.mutateAsync(combinedKey);
       if (isValid) {
         doNavigate();
-      } else if (actor) {
-        // Check if this is admin with no credentials set (first-time setup or after redeploy)
+        return;
+      }
+
+      // Passkey may be null (after redeploy). If actor is ready, check isCallerAdmin.
+      if (actor) {
         const isAdmin = await actor.isCallerAdmin();
         if (isAdmin) {
-          sessionStorage.setItem("adminAuthenticated", "true");
-          toast.success(
-            "You're in — please set your admin email and password in the Security tab.",
-            { duration: 7000 },
+          // Auto-open reset form
+          setShowSetCredentials(true);
+          toast.info(
+            "Credentials were reset after a redeploy. Please set your new password.",
+            { duration: 6000 },
           );
-          navigate({ to: "/admin" });
+        } else {
+          // Not signed in with II yet — prompt II login then re-check
+          setError(
+            "Credentials not found. This can happen after a redeploy. Sign in with Internet Identity to reset your credentials.",
+          );
+        }
+      } else {
+        // Actor not ready — trigger II login if not authenticated, then retry
+        if (!isAuthenticated) {
+          pendingSignInRef.current = true;
+          login();
         } else {
           setError("Incorrect email or password.");
         }
-      } else {
-        setError("Incorrect email or password.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -225,91 +319,181 @@ export function AdminLoginPage() {
 
         <Card className="bg-card border-border shadow-lg">
           <CardHeader className="pb-4">
-            <CardTitle className="font-display text-lg">Sign in</CardTitle>
+            <CardTitle className="font-display text-lg">
+              {showSetCredentials ? "Set New Admin Credentials" : "Sign in"}
+            </CardTitle>
             <CardDescription>
-              {!isAuthenticated
-                ? "You must sign in first, then verify your identity."
-                : "Enter your admin email and password to access the portal."}
+              {showSetCredentials
+                ? "Identity verified. Set a new email and password for admin login."
+                : !isAuthenticated
+                  ? "Sign in with your admin email and password."
+                  : "Enter your admin email and password to access the portal."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Step 1 — Internet Identity */}
-            {!isAuthenticated && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-4"
-              >
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border text-sm text-muted-foreground">
-                  <Lock className="w-4 h-4 mt-0.5 flex-shrink-0 text-primary" />
-                  <p>
-                    You need to sign in with your Internet Identity account
-                    before accessing the admin section.
-                  </p>
-                </div>
-                <Button
-                  data-ocid="admin_login.signin_button"
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
-                  onClick={login}
-                  disabled={isLoggingIn || bypassLoading}
-                >
-                  {isLoggingIn || (bypassLoading && !isAuthenticated) ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Signing in…
-                    </>
-                  ) : (
-                    "Sign in with Internet Identity"
-                  )}
-                </Button>
-
-                {/* Forgot credentials — visible even before II login */}
-                <div className="pt-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="h-px flex-1 bg-border" />
-                    <span className="text-xs text-muted-foreground">
-                      forgot credentials?
-                    </span>
-                    <div className="h-px flex-1 bg-border" />
-                  </div>
-                  <Button
-                    data-ocid="admin_login.forgot_passkey.button"
-                    type="button"
-                    variant="outline"
-                    className="w-full gap-2 border-border text-muted-foreground hover:text-foreground hover:border-primary/40 font-display text-sm"
-                    onClick={handleForgotPasskey}
-                    disabled={bypassLoading || isLoggingIn}
-                  >
-                    {bypassLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Verifying identity…
-                      </>
-                    ) : (
-                      <>
-                        <KeyRound className="w-4 h-4" />
-                        Reset credentials via Internet Identity
-                      </>
-                    )}
-                  </Button>
-                  <p className="text-xs text-muted-foreground text-center mt-2">
-                    Sign in with Internet Identity to verify you are the app
-                    admin, then reset your credentials in the Security tab.
-                  </p>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Step 2 — Email + Password flow */}
-            {isAuthenticated && (
+            {/* Set new credentials after II bypass */}
+            {showSetCredentials && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
                 className="space-y-5"
               >
-                {/* Fingerprint button — shown when registered */}
-                {fingerprintAvailable && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-700 dark:text-green-400">
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <p>
+                    Identity verified via Internet Identity. Set your new login
+                    credentials below.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="new-admin-email"
+                    className="text-sm font-medium"
+                  >
+                    New Admin Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="new-admin-email"
+                      data-ocid="admin_reset.email.input"
+                      type="email"
+                      placeholder="your@gmail.com"
+                      value={newEmail}
+                      onChange={(e) => {
+                        setNewEmail(e.target.value);
+                        setSaveError(null);
+                      }}
+                      className="bg-input border-border focus:border-primary pl-10"
+                      autoFocus
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="new-admin-password"
+                    className="text-sm font-medium"
+                  >
+                    New Password
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="new-admin-password"
+                      data-ocid="admin_reset.password.input"
+                      type="password"
+                      placeholder="••••••••"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setSaveError(null);
+                      }}
+                      className="bg-input border-border focus:border-primary pl-10"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="confirm-admin-password"
+                    className="text-sm font-medium"
+                  >
+                    Confirm Password
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="confirm-admin-password"
+                      data-ocid="admin_reset.confirm_password.input"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setSaveError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveNewCredentials();
+                      }}
+                      className="bg-input border-border focus:border-primary pl-10"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+
+                {saveError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    data-ocid="admin_reset.error_state"
+                    className="text-sm text-destructive flex items-center gap-1.5 bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2"
+                  >
+                    <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                    {saveError}
+                  </motion.p>
+                )}
+
+                <Button
+                  data-ocid="admin_reset.save.button"
+                  type="button"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
+                  onClick={handleSaveNewCredentials}
+                  disabled={
+                    setAdminPasskey.isPending ||
+                    !newEmail.trim() ||
+                    !newPassword ||
+                    !confirmPassword
+                  }
+                >
+                  {setAdminPasskey.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Save & Enter Admin Portal
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            )}
+
+            {/* Email + Password flow (shown once II is authenticated or not yet needed) */}
+            {!showSetCredentials && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-5"
+              >
+                {/* Step 1: II login prompt (only when not yet authenticated) */}
+                {!isAuthenticated && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border text-sm text-muted-foreground">
+                    <Lock className="w-4 h-4 mt-0.5 flex-shrink-0 text-primary" />
+                    <p>
+                      Sign in with Internet Identity to enable all admin
+                      features.{" "}
+                      <button
+                        type="button"
+                        className="text-primary underline hover:no-underline font-medium"
+                        onClick={login}
+                        disabled={isLoggingIn}
+                      >
+                        {isLoggingIn ? "Signing in…" : "Sign in now"}
+                      </button>
+                    </p>
+                  </div>
+                )}
+
+                {/* Fingerprint button — shown when registered and II authenticated */}
+                {fingerprintAvailable && isAuthenticated && (
                   <div className="space-y-3">
                     <Button
                       data-ocid="admin_login.fingerprint_button"
@@ -402,15 +586,40 @@ export function AdminLoginPage() {
                   </div>
 
                   {error && (
-                    <motion.p
+                    <motion.div
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
                       data-ocid="admin_login.error_state"
-                      className="text-sm text-destructive flex items-center gap-1.5 bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2"
+                      className="rounded-md bg-destructive/5 border border-destructive/20 px-3 py-2 space-y-2"
                     >
-                      <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                      {error}
-                    </motion.p>
+                      <p className="text-sm text-destructive flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                        {error}
+                      </p>
+                      {/* If credentials not found (post-redeploy), offer quick reset */}
+                      {error.includes("reset") && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full gap-2 text-xs border-destructive/30 text-destructive hover:bg-destructive/5"
+                          onClick={handleForgotPasskey}
+                          disabled={bypassLoading || isLoggingIn}
+                        >
+                          {bypassLoading || isLoggingIn ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Verifying…
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              Reset credentials via Internet Identity
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </motion.div>
                   )}
 
                   <Button
@@ -419,10 +628,13 @@ export function AdminLoginPage() {
                     className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display font-semibold gap-2"
                     onClick={handleSignIn}
                     disabled={
-                      verifyPasskey.isPending || !email.trim() || !password
+                      loginLoading ||
+                      verifyPasskey.isPending ||
+                      !email.trim() ||
+                      !password
                     }
                   >
-                    {verifyPasskey.isPending ? (
+                    {loginLoading || verifyPasskey.isPending ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Verifying…
@@ -436,7 +648,7 @@ export function AdminLoginPage() {
                   </Button>
                 </motion.div>
 
-                {/* Forgot credentials bypass */}
+                {/* Forgot / Reset credentials */}
                 <div className="pt-2">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="h-px flex-1 bg-border" />
@@ -445,15 +657,57 @@ export function AdminLoginPage() {
                     </span>
                     <div className="h-px flex-1 bg-border" />
                   </div>
+
+                  {/* Post-redeploy warning */}
+                  <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 space-y-1">
+                    <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      After every redeploy, credentials reset
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      If login fails after a new version is deployed, click the
+                      button below to verify your identity and set a fresh
+                      password.
+                    </p>
+                  </div>
+
+                  {/* Admin credentials hint box */}
+                  <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 space-y-2">
+                    <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" />
+                      Saved Admin Credentials
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs text-muted-foreground">
+                          Email:
+                        </span>
+                        <span className="text-xs font-mono font-medium text-foreground select-all">
+                          {ADMIN_EMAIL}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs text-muted-foreground">
+                          Password:
+                        </span>
+                        <span className="text-xs font-mono font-medium text-foreground select-all">
+                          Vij9633188098
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   <Button
                     data-ocid="admin_login.forgot_passkey.button"
                     type="button"
                     variant="outline"
                     className="w-full gap-2 border-border text-muted-foreground hover:text-foreground hover:border-primary/40 font-display text-sm"
                     onClick={handleForgotPasskey}
-                    disabled={bypassLoading}
+                    disabled={bypassLoading || isLoggingIn}
                   >
-                    {bypassLoading ? (
+                    {bypassLoading || isLoggingIn ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Verifying identity…
@@ -466,8 +720,8 @@ export function AdminLoginPage() {
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center mt-2">
-                    If you are the app admin, this will let you set a new email
-                    and password in the Security tab.
+                    Verify you are the app admin via Internet Identity, then set
+                    a new email and password right here.
                   </p>
                 </div>
               </motion.div>
