@@ -122,26 +122,26 @@ export function AdminLoginPage() {
   // When actor becomes available after pending bypass
   useEffect(() => {
     if (!actor) return;
-    if (pendingBypassRef.current) {
-      pendingBypassRef.current = false;
-      void (async () => {
-        setBypassLoading(true);
-        try {
-          const isAdmin = await actor.isCallerAdmin();
-          if (isAdmin) {
-            setStep("set-credentials");
-          } else {
-            setEmailError(
-              "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
-            );
-          }
-        } catch {
-          setEmailError("Could not verify admin identity. Please try again.");
-        } finally {
+    if (!pendingBypassRef.current) return;
+    pendingBypassRef.current = false;
+    void (async () => {
+      // bypassLoading was already set true before login() was called
+      try {
+        const isAdmin = await actor.isCallerAdmin();
+        if (isAdmin) {
+          setStep("set-credentials");
           setBypassLoading(false);
+        } else {
+          setBypassLoading(false);
+          setEmailError(
+            "Only the app admin can reset credentials. Make sure you sign in with the same Internet Identity account that owns this app.",
+          );
         }
-      })();
-    }
+      } catch {
+        setBypassLoading(false);
+        setEmailError("Could not verify admin identity. Please try again.");
+      }
+    })();
   }, [actor]);
 
   // Step 1: Send OTP
@@ -160,11 +160,38 @@ export function AdminLoginPage() {
       try {
         emailMatch = await verifyPasskey.mutateAsync(email.trim());
       } catch {
-        // Error means no credentials set yet (first-time setup)
+        // Error means no credentials not set yet (happens after every redeploy)
         noCredentials = true;
       }
 
-      if (!noCredentials && !emailMatch) {
+      if (noCredentials) {
+        // No admin email saved yet — verify identity via Internet Identity
+        // then let admin register their email
+        if (!actor) {
+          setEmailError("Actor not ready. Please wait a moment and try again.");
+          return;
+        }
+        setEmailLoading(false);
+        setBypassLoading(true);
+        try {
+          const isAdmin = await actor.isCallerAdmin();
+          if (isAdmin) {
+            setNewEmail(email.trim()); // pre-fill with the email they typed
+            setStep("set-credentials");
+          } else {
+            setEmailError(
+              'No admin credentials found. Sign in with the Internet Identity account that owns this app, then use "Reset credentials via Internet Identity" to register your email.',
+            );
+          }
+        } catch {
+          setEmailError("Could not verify admin identity. Please try again.");
+        } finally {
+          setBypassLoading(false);
+        }
+        return;
+      }
+
+      if (!emailMatch) {
         setEmailError("This email is not registered as admin email.");
         return;
       }
@@ -240,18 +267,32 @@ export function AdminLoginPage() {
   const handleForgotPasskey = async () => {
     setEmailError(null);
     if (!isAuthenticated) {
+      // Trigger II login; pendingBypassRef will fire once actor is ready
       pendingBypassRef.current = true;
       setBypassLoading(true);
       login();
       return;
     }
-    if (!actor) {
-      setEmailError("Actor not ready. Please wait a moment and try again.");
-      return;
-    }
+    // Already authenticated — proceed immediately
     setBypassLoading(true);
     try {
-      const isAdmin = await actor.isCallerAdmin();
+      // actor may briefly be null after a fresh II login; retry a few times
+      let resolvedActor = actor;
+      if (!resolvedActor) {
+        for (let i = 0; i < 10; i++) {
+          await new Promise((r) => setTimeout(r, 300));
+          if (actor) {
+            resolvedActor = actor;
+            break;
+          }
+        }
+      }
+      if (!resolvedActor) {
+        setEmailError("Actor not ready. Please refresh and try again.");
+        setBypassLoading(false);
+        return;
+      }
+      const isAdmin = await resolvedActor.isCallerAdmin();
       if (isAdmin) {
         setStep("set-credentials");
       } else {
@@ -718,9 +759,10 @@ export function AdminLoginPage() {
                       After every redeploy, credentials reset
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      If login fails after a new version is deployed, click the
-                      button below to verify your identity and set a new admin
-                      email.
+                      After a new version is deployed, type your email above and
+                      tap "Send OTP" — if no credentials are saved yet, the app
+                      will verify your Internet Identity and let you register
+                      your email. Or click the button below to reset.
                     </p>
                   </div>
 

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff, Film, Loader2, Lock, Mail, User } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
@@ -23,6 +24,7 @@ interface EmailAuthModalProps {
 export function EmailAuthModal({ open }: EmailAuthModalProps) {
   const { isRegistered, register, loginWithEmail, getStoredEmail } =
     useEmailAuth();
+  const navigate = useNavigate();
 
   const saveMutation = useSaveCallerUserProfile();
 
@@ -69,7 +71,10 @@ export function EmailAuthModal({ open }: EmailAuthModalProps) {
       // Register email auth (also sets session, triggers re-render)
       register(name.trim(), email.trim(), password);
 
-      toast.success(`Welcome to videru, ${name.trim()}!`);
+      toast.success(`Welcome to Videro, ${name.trim()}!`);
+
+      // Navigate to the client dashboard after successful registration
+      navigate({ to: "/client" });
     } catch {
       setError("Failed to save profile. Please try again.");
       setIsPending(false);
@@ -92,6 +97,9 @@ export function EmailAuthModal({ open }: EmailAuthModalProps) {
     const success = loginWithEmail(email, password);
     if (!success) {
       setError("Incorrect email or password. Please try again.");
+    } else {
+      // Navigate to the client dashboard after successful login
+      navigate({ to: "/client" });
     }
   };
 

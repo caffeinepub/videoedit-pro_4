@@ -60,7 +60,8 @@ function RootLayout() {
 // ── Guards ───────────────────────────────────────────────────────────────────
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { identity, isInitializing } = useInternetIdentity();
+  const { identity, isInitializing, login, isLoggingIn } =
+    useInternetIdentity();
   const { isLoading } = useGetCallerUserProfile();
   const { isRegistered, isEmailLoggedIn } = useEmailAuth();
 
@@ -75,8 +76,32 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Not signed in with Internet Identity — show a friendly sign-in prompt
   if (!identity) {
-    return <AccessDenied />;
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mx-auto mb-5">
+            <span className="text-2xl">🎬</span>
+          </div>
+          <h1 className="font-display text-2xl font-black tracking-tight mb-2">
+            Sign in to Videro
+          </h1>
+          <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
+            Sign in with Internet Identity to access your account.
+          </p>
+          <button
+            type="button"
+            data-ocid="auth_guard.login_button"
+            onClick={() => login()}
+            disabled={isLoggingIn}
+            className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-primary text-primary-foreground font-display font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            {isLoggingIn ? "Signing in…" : "Sign in with Internet Identity"}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Email auth gate: show modal if not yet registered or not logged in this session
